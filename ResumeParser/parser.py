@@ -35,6 +35,38 @@ SECTION_PATTERNS = {
     "skills": r"(?i)(skills|technical skills|core competencies|competencies)",
 }
 
+# Lines that must never be treated as a person's name
+SECTION_HEADINGS = {
+    "professional summary",
+    "summary",
+    "objective",
+    "career objective",
+    "profile",
+    "about me",
+    "skills",
+    "technical skills",
+    "core competencies",
+    "competencies",
+    "education",
+    "experience",
+    "work experience",
+    "professional experience",
+    "work history",
+    "employment",
+    "projects",
+    "personal projects",
+    "certifications",
+    "certificates",
+    "licenses",
+    "contact",
+    "contact information",
+    "references",
+    "achievements",
+    "curriculum vitae",
+    "resume",
+    "cv",
+}
+
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """Extract plain text from a PDF file using pypdf."""
@@ -85,25 +117,69 @@ def extract_phone(text: str) -> str:
     return ""
 
 
-def extract_full_name(text: str) -> str:
+def _is_section_heading(line: str) -> bool:
+    """Return True if the line is a resume section title, not a person name."""
+    cleaned = re.sub(r'^[•\-\*■❑\d\.\s\)\(]+', '', line)  # Remove list bullets, numbers
+    normalized = cleaned.strip().lower().rstrip(":").strip()
+    if not normalized:
+        return True
+    if normalized in SECTION_HEADINGS:
+        return True
+    for heading in SECTION_HEADINGS:
+        if normalized == heading or normalized.startswith(heading + " ") or normalized.startswith(heading + ":"):
+            return True
+    return False
+
+
+def _name_from_filename(filename: str) -> str:
+    """Derive a readable name from the uploaded file name."""
+    import os
+
+    base = os.path.splitext(os.path.basename(filename))[0]
+    base = re.sub(r"([a-z])([A-Z])", r"\1 \2", base)  # Split camel/PascalCase
+    base = re.sub(r"[_\-]+", " ", base)
+    cleaned = re.sub(r"(?i)\b(resume|cv|pdf|docx|profile|updated|latest|new|copy)\b", "", base)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned.title() if cleaned else "Unknown Candidate"
+
+
+def extract_full_name(text: str, filename: str = "") -> str:
     """
-    Guess the candidate name from the first few lines of the resume.
-    Skips lines that look like contact info or section headers.
+    Extract the candidate name from resume text.
+    Priority: Name:/Full Name: label → first valid line → cleaned file name.
     """
     lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+    # 1. Check for "Name:" or "Full Name:" first in the first 12 lines.
+    for idx, line in enumerate(lines[:12]):
+        m = re.match(r"(?i)^\s*(?:full\s+name|name)\s*[:\-]\s*(.*)", line)
+        if m:
+            candidate = m.group(1).strip()
+            if not candidate and idx + 1 < len(lines):
+                candidate = lines[idx + 1].strip()
+            if candidate and not _is_section_heading(candidate) and "@" not in candidate:
+                if len(candidate) < 60:
+                    return candidate.title()
+
+    # 2. Iterate lines to find first line that looks like a name (restricted to first 3 lines)
     skip_pattern = re.compile(
         r"(?i)(resume|curriculum vitae|cv|email|phone|linkedin|github|address|@|http|www\.)"
     )
-
-    for line in lines[:8]:
+    for line in lines[:3]:
         if skip_pattern.search(line):
             continue
-        # Name is usually short (2-5 words) and mostly alphabetic
+        if _is_section_heading(line):
+            continue
         words = line.split()
         if 1 <= len(words) <= 5 and len(line) < 60:
             alpha_ratio = sum(c.isalpha() or c.isspace() for c in line) / max(len(line), 1)
             if alpha_ratio > 0.75:
-                return line.title()
+                # Ensure no digits or symbols that don't belong in a name
+                if not any(c.isdigit() or c in "@#$^*+=_[]{}|\\<>/~`!?" for c in line):
+                    return line.title()
+
+    if filename:
+        return _name_from_filename(filename)
     return "Unknown Candidate"
 
 
@@ -167,7 +243,7 @@ def parse_resume(file_bytes: bytes, filename: str) -> dict[str, Any]:
     sections = _split_into_sections(raw_text)
 
     profile = {
-        "full_name": extract_full_name(raw_text),
+        "full_name": extract_full_name(raw_text, filename),
         "email": extract_email(raw_text),
         "phone": extract_phone(raw_text),
         "skills": extract_skills(raw_text),
