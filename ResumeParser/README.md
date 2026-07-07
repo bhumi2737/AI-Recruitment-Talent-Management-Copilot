@@ -2,7 +2,7 @@
 
 **Milestone 1: Resume Parser and Candidate Profiling**
 
-A Streamlit-based recruitment dashboard that uploads PDF/DOCX resumes, extracts structured candidate information, and stores profiles in PostgreSQL.
+A Streamlit-based recruitment dashboard that uploads PDF/DOCX resumes, extracts structured candidate information, and stores profiles in MongoDB.
 
 ---
 
@@ -14,7 +14,7 @@ A Streamlit-based recruitment dashboard that uploads PDF/DOCX resumes, extracts 
 - Skills displayed as blue badge chips
 - Parsing progress metrics (processed count, accuracy, profiles created)
 - Recently processed candidates table
-- PostgreSQL persistence with graceful offline fallback
+- MongoDB persistence with graceful offline fallback
 
 ---
 
@@ -25,8 +25,8 @@ AI-Recruitment-Talent-Management-Copilot/
 └── ResumeParser/
     ├── app.py           # Streamlit dashboard UI
     ├── parser.py        # Resume text extraction and parsing logic
-    ├── database.py      # PostgreSQL connection and CRUD operations
-    ├── schema.sql       # Database table definition
+    ├── database.py      # MongoDB connection and CRUD operations
+    ├── schema.sql.old   # Legacy database table definition (PostgreSQL reference)
     ├── requirements.txt # Python dependencies
     └── README.md        # This file
 ```
@@ -36,7 +36,7 @@ AI-Recruitment-Talent-Management-Copilot/
 ## Prerequisites
 
 - **Python 3.10+**
-- **PostgreSQL 14+** (optional — app works without DB, but won't persist data)
+- **MongoDB 5.0+** (optional — app works without DB, but won't persist data)
 
 ---
 
@@ -69,49 +69,23 @@ cd ResumeParser
 pip install -r requirements.txt
 ```
 
-### 4. Set up PostgreSQL
+### 4. Set up MongoDB
 
-#### 4a. Create the database
+#### 4a. Setup local or remote MongoDB instance
 
-Open `psql` or pgAdmin and run:
+The application can connect to a local MongoDB server (`mongodb://localhost:27017/`) or a remote MongoDB Atlas database cluster.
 
-```sql
-CREATE DATABASE recruitment_copilot;
+#### 4b. Configure environment variables (`.env` file)
+
+Create a `.env` file inside the `ResumeParser` directory (if it doesn't already exist) with the following connection details:
+
+```env
+MONGO_URI=mongodb://localhost:27017/
+MONGO_DB=recruitment_copilot
+MONGO_COLLECTION=candidates
 ```
 
-#### 4b. Create the candidates table
-
-Connect to the new database and run the schema file:
-
-```bash
-psql -U postgres -d recruitment_copilot -f schema.sql
-```
-
-Or paste the contents of `schema.sql` into pgAdmin's query tool.
-
-#### 4c. Configure connection (optional)
-
-The app uses these defaults:
-
-| Variable      | Default               |
-|---------------|-----------------------|
-| `DB_HOST`     | `localhost`           |
-| `DB_PORT`     | `5432`                |
-| `DB_NAME`     | `recruitment_copilot` |
-| `DB_USER`     | `postgres`            |
-| `DB_PASSWORD` | `postgres`            |
-
-Override them by setting environment variables before running the app:
-
-```bash
-# Windows (PowerShell)
-$env:DB_HOST = "localhost"
-$env:DB_PASSWORD = "your_password"
-
-# macOS / Linux
-export DB_HOST=localhost
-export DB_PASSWORD=your_password
-```
+Replace `MONGO_URI` with your connection string if you are using MongoDB Atlas or running on a non-standard port.
 
 ### 5. Run the Streamlit app
 
@@ -135,10 +109,11 @@ The dashboard opens automatically at **http://localhost:8501**.
 
 ### Database (`database.py`)
 
-- Uses **psycopg v3** for PostgreSQL connectivity
-- `save_candidate()` inserts parsed profiles
-- `get_recent_candidates()` powers the dashboard table
-- If the database is unreachable, the app shows a warning and still displays parsed data
+- Uses **pymongo** for MongoDB connectivity
+- `save_candidate()` checks for duplicate candidates by email/phone and inserts unique profiles
+- `get_all_candidates()` queries all candidate profiles with search filters
+- `get_recent_candidates()` fetches the latest candidate entries for the dashboard
+- If the database is unreachable, the app shows a warning and still displays parsed data offline
 
 ### UI (`app.py`)
 
@@ -163,7 +138,7 @@ The dashboard opens automatically at **http://localhost:8501**.
 
 | Issue | Solution |
 |-------|----------|
-| `Database offline` warning | Start PostgreSQL and verify credentials |
+| `Database offline` warning | Start MongoDB and verify the credentials in the `.env` file |
 | Empty skills list | Resume may use uncommon skill names; add keywords in `parser.py` |
 | Name shows "Unknown Candidate" | Ensure the name is on the first few lines of the resume |
 | PDF text is garbled | Some scanned PDFs need OCR (not included in Milestone 1) |
@@ -177,8 +152,8 @@ The dashboard opens automatically at **http://localhost:8501**.
 | UI | Streamlit |
 | PDF parsing | pypdf |
 | DOCX parsing | python-docx |
-| Database | PostgreSQL |
-| DB driver | psycopg |
+| Database | MongoDB |
+| DB driver | pymongo |
 
 ---
 

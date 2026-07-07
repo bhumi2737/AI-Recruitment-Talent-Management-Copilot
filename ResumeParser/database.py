@@ -71,6 +71,20 @@ def save_candidate(profile: dict[str, Any]) -> tuple[bool, str, str | None]:
             db = client[MONGO_CONFIG["dbname"]]
             col = db[MONGO_CONFIG["collection"]]
             
+            # Check if candidate already exists by email or phone
+            email = profile.get("email", "").strip() if profile.get("email") else ""
+            phone = profile.get("phone", "").strip() if profile.get("phone") else ""
+            
+            if email:
+                existing = col.find_one({"email": email})
+                if existing:
+                    return False, f"Candidate with email '{email}' already exists in the database.", str(existing["_id"])
+            
+            if phone:
+                existing = col.find_one({"phone": phone})
+                if existing:
+                    return False, f"Candidate with phone '{phone}' already exists in the database.", str(existing["_id"])
+            
             doc = {
                 "full_name": profile.get("full_name", ""),
                 "email": profile.get("email", ""),
@@ -126,3 +140,47 @@ def get_candidate_count() -> int:
             return col.count_documents({})
     except Exception:
         return 0
+
+
+def get_all_candidates(search_query: str = None) -> list[dict]:
+    """
+    Fetch all candidates from MongoDB, optionally filtered by a search query.
+    """
+    try:
+        with get_mongo_client() as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            col = db[MONGO_CONFIG["collection"]]
+            
+            query = {}
+            if search_query and search_query.strip():
+                q = search_query.strip()
+                query = {
+                    "$or": [
+                        {"full_name": {"$regex": q, "$options": "i"}},
+                        {"email": {"$regex": q, "$options": "i"}},
+                        {"skills": {"$regex": q, "$options": "i"}},
+                        {"education": {"$regex": q, "$options": "i"}},
+                        {"experience": {"$regex": q, "$options": "i"}},
+                    ]
+                }
+                
+            docs = col.find(query).sort("created_at", pymongo.DESCENDING)
+            
+            candidates = []
+            for doc in docs:
+                candidates.append({
+                    "id": str(doc["_id"]),
+                    "full_name": doc.get("full_name", ""),
+                    "email": doc.get("email", ""),
+                    "phone": doc.get("phone", ""),
+                    "skills": doc.get("skills", ""),
+                    "education": doc.get("education", ""),
+                    "experience": doc.get("experience", ""),
+                    "certifications": doc.get("certifications", ""),
+                    "projects": doc.get("projects", ""),
+                    "raw_text": doc.get("raw_text", ""),
+                    "created_at": doc.get("created_at"),
+                })
+            return candidates
+    except Exception:
+        return []

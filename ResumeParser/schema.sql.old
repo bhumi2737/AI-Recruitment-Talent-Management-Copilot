@@ -1,5 +1,5 @@
--- PostgreSQL schema for AI Recruitment & Talent Management Copilot
--- Milestone 1: Resume Parser and Candidate Profiling
+-- LEGACY REFERENCE: PostgreSQL schema for AI Recruitment & Talent Management Copilot
+-- NOTE: The repository has shifted to MongoDB. This schema is retained for PostgreSQL reference only.
 
 CREATE TABLE IF NOT EXISTS candidates (
     id              SERIAL PRIMARY KEY,
