@@ -26,6 +26,57 @@ SKILL_KEYWORDS = [
     "streamlit", "selenium", "junit", "pytest", "unit testing",
 ]
 
+SKILL_NORMALIZATION = {
+    "node.js": "Node.js",
+    "rest api": "REST API",
+    "restapi": "REST API",
+    "graphql": "GraphQL",
+    "aws": "AWS",
+    "gcp": "GCP",
+    "azure": "Azure",
+    "ci/cd": "CI/CD",
+    "nlp": "NLP",
+    "ml": "ML",
+    "ai": "AI",
+    "python": "Python",
+    "java": "Java",
+    "javascript": "JavaScript",
+    "typescript": "TypeScript",
+    "c#": "C#",
+    "c++": "C++",
+    "html": "HTML",
+    "css": "CSS",
+    "react": "React",
+    "angular": "Angular",
+    "vue": "Vue",
+    "django": "Django",
+    "flask": "Flask",
+    "fastapi": "FastAPI",
+    "spring": "Spring",
+    "docker": "Docker",
+    "kubernetes": "Kubernetes",
+    "postgresql": "PostgreSQL",
+    "mysql": "MySQL",
+    "mongodb": "MongoDB",
+    "redis": "Redis",
+    "pandas": "Pandas",
+    "numpy": "NumPy",
+    "tensorflow": "TensorFlow",
+    "pytorch": "PyTorch",
+    "scikit-learn": "Scikit-Learn",
+    "power bi": "Power BI",
+    "tableau": "Tableau",
+    "streamlit": "Streamlit",
+    "selenium": "Selenium",
+    "junit": "JUnit",
+    "pytest": "Pytest",
+    "excel": "Excel",
+    "terraform": "Terraform",
+    "ansible": "Ansible",
+    "figma": "Figma",
+    "photoshop": "Photoshop",
+}
+
 # Section headers commonly found in resumes
 SECTION_PATTERNS = {
     "education": r"(?i)(education|academic background|qualifications|academics)",
@@ -68,29 +119,42 @@ SECTION_HEADINGS = {
 }
 
 
-def extract_text_from_pdf(file_bytes: bytes) -> str:
+def normalize_extracted_text(text: str) -> str:
+    text = text.replace("\xa0", " ").replace("\u200b", " ")
+    text = re.sub(r"\s*@\s*", "@", text)
+    text = re.sub(r"\s*\.\s*", ".", text)
+    text = re.sub(r"[ \t\f\v]+", " ", text)
+    text = re.sub(r"[ ]{2,}", " ", text)
+    text = re.sub(r"\r\n|\r", "\n", text)
+    text = re.sub(r"\n\s*\n+", "\n", text)
+    return text.strip()
+
+
+def extract_pdf_text(file_bytes: bytes) -> str:
     """Extract plain text from a PDF file using pypdf."""
-    reader = PdfReader(io.BytesIO(file_bytes))
+    file = io.BytesIO(file_bytes)
+    file.seek(0)
+    reader = PdfReader(file)
     pages = []
     for page in reader.pages:
-        text = page.extract_text()
-        if text:
-            pages.append(text)
-    return "\n".join(pages)
+        page_text = page.extract_text()
+        pages.append(page_text or "")
+    raw_text = "\n".join(pages)
+    return normalize_extracted_text(raw_text)
 
 
 def extract_text_from_docx(file_bytes: bytes) -> str:
     """Extract plain text from a DOCX file using python-docx."""
     document = Document(io.BytesIO(file_bytes))
     paragraphs = [para.text for para in document.paragraphs if para.text.strip()]
-    return "\n".join(paragraphs)
+    return normalize_extracted_text("\n".join(paragraphs))
 
 
 def extract_text(file_bytes: bytes, filename: str) -> str:
     """Route to the correct extractor based on file extension."""
     name = filename.lower()
     if name.endswith(".pdf"):
-        return extract_text_from_pdf(file_bytes)
+        return extract_pdf_text(file_bytes)
     if name.endswith(".docx"):
         return extract_text_from_docx(file_bytes)
     raise ValueError("Unsupported file format. Please upload a PDF or DOCX file.")
@@ -98,22 +162,27 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
 
 def extract_email(text: str) -> str:
     """Find the first email address in the resume text."""
-    pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-    match = re.search(pattern, text)
+    search_text = text.replace("\xa0", " ")
+    search_text = re.sub(r"\s*@\s*", "@", search_text)
+    search_text = re.sub(r"\s*\.\s*", ".", search_text)
+    pattern = r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[A-Za-z]{2,}"
+    match = re.search(pattern, search_text)
     return match.group(0) if match else ""
 
 
 def extract_phone(text: str) -> str:
     """Find a phone number using common formats."""
+    search_text = text.replace("\xa0", " ").replace("\u200b", " ")
     patterns = [
-        r"\+?\d{1,3}[-.\s]?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}",
+        r"(?:\+91[\s\-]?)?\d{5}[\s\-]?\d{5}",
+        r"(?:\+?\d{1,3}[\s\-]?)?\(?\d{2,4}\)?[\s\-]?\d{3,4}[\s\-]?\d{3,4}",
         r"\b\d{10}\b",
-        r"\(\d{3}\)\s*\d{3}[-.\s]?\d{4}",
+        r"\b\d{3}[\s\-]\d{3}[\s\-]\d{4}\b",
     ]
     for pattern in patterns:
-        match = re.search(pattern, text)
+        match = re.search(pattern, search_text)
         if match:
-            return match.group(0).strip()
+            return re.sub(r"\s+", " ", match.group(0)).strip()
     return ""
 
 
@@ -183,14 +252,40 @@ def extract_full_name(text: str, filename: str = "") -> str:
     return "Unknown Candidate"
 
 
+def normalize_skill_name(skill: str) -> str:
+    """Normalize skill names for consistent aggregation and display."""
+    if not skill:
+        return ""
+    candidate = skill.strip()
+    normalized_key = re.sub(r"[^\w\+#\.\- ]+", "", candidate.lower()).strip()
+    if normalized_key in SKILL_NORMALIZATION:
+        return SKILL_NORMALIZATION[normalized_key]
+    if candidate.isupper() and len(candidate) <= 5:
+        return candidate
+    if normalized_key in {"ai", "ml", "nlp", "sql", "aws", "gcp", "ci/cd"}:
+        return normalized_key.upper()
+    return candidate.title()
+
+
+def normalize_skills_list(skills: list[str]) -> list[str]:
+    normalized = []
+    seen = set()
+    for skill in skills:
+        cleaned = normalize_skill_name(skill)
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            normalized.append(cleaned)
+    return sorted(normalized, key=str.lower)
+
+
 def extract_skills(text: str) -> list[str]:
     """Match known skill keywords against resume text (case-insensitive)."""
     text_lower = text.lower()
     found = []
     for skill in SKILL_KEYWORDS:
         if skill.lower() in text_lower:
-            found.append(skill.title() if skill.islower() else skill)
-    return sorted(set(found), key=str.lower)
+            found.append(normalize_skill_name(skill))
+    return normalize_skills_list(found)
 
 
 def _split_into_sections(text: str) -> dict[str, str]:
@@ -241,6 +336,7 @@ def parse_resume(file_bytes: bytes, filename: str) -> dict[str, Any]:
     """
     raw_text = extract_text(file_bytes, filename)
     sections = _split_into_sections(raw_text)
+    file_type = "pdf" if filename.lower().endswith(".pdf") else "docx"
 
     profile = {
         "full_name": extract_full_name(raw_text, filename),
@@ -252,6 +348,8 @@ def parse_resume(file_bytes: bytes, filename: str) -> dict[str, Any]:
         "certifications": _get_section(sections, "certifications"),
         "projects": _get_section(sections, "projects"),
         "raw_text": raw_text,
+        "source_filename": filename,
+        "source_file_type": file_type,
     }
 
     # If skills section exists but keyword matching found little, include section text
