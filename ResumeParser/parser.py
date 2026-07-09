@@ -78,13 +78,60 @@ SKILL_NORMALIZATION = {
 }
 
 # Section headers commonly found in resumes
-SECTION_PATTERNS = {
-    "education": r"(?i)(education|academic background|qualifications|academics)",
-    "experience": r"(?i)(experience|work history|employment|professional experience|work experience)",
-    "projects": r"(?i)(projects|personal projects|key projects|project experience)",
-    "certifications": r"(?i)(certifications|certificates|licenses|credentials)",
-    "skills": r"(?i)(skills|technical skills|core competencies|competencies)",
+SECTION_ALIASES = {
+    "education": [
+        "education",
+        "academic background",
+        "academic qualification",
+        "academic qualifications",
+        "qualifications",
+        "academics",
+        "education details",
+    ],
+    "experience": [
+        "work experience",
+        "professional experience",
+        "experience",
+        "work history",
+        "employment",
+        "internship",
+        "internships",
+    ],
+    "projects": [
+        "projects",
+        "personal projects",
+        "academic projects",
+        "key projects",
+        "project experience",
+    ],
+    "certifications": [
+        "certifications",
+        "certificates",
+        "licenses",
+        "credentials",
+        "courses",
+    ],
+    "skills": [
+        "technical skills",
+        "skills",
+        "core competencies",
+        "competencies",
+        "tech stack",
+        "technologies",
+    ],
 }
+
+# Kept for compatibility with older code that may import SECTION_PATTERNS
+SECTION_PATTERNS = {
+    section: r"(?i)(" + "|".join(re.escape(alias) for alias in aliases) + r")"
+    for section, aliases in SECTION_ALIASES.items()
+}
+
+ALL_SECTION_HEADINGS = sorted(
+    {alias for aliases in SECTION_ALIASES.values() for alias in aliases},
+    key=len,
+    reverse=True,
+)
 
 # Lines that must never be treated as a person's name
 SECTION_HEADINGS = {
@@ -119,16 +166,44 @@ SECTION_HEADINGS = {
 }
 
 
+def _add_newlines_around_section_headings(text: str) -> str:
+    """
+    PDF extractors sometimes return text like:
+    "... MongoDB collections.PROJECTS - Job tracker.CERTIFICATIONS ..."
+    This helper separates known resume headings onto their own lines.
+    """
+    for heading in ALL_SECTION_HEADINGS:
+        escaped = re.escape(heading)
+
+        # Put a newline BEFORE a heading when it appears after punctuation or at a line start.
+        # Example: "applications.PROJECTS" -> "applications.\nPROJECTS"
+        text = re.sub(
+            rf"(?i)(^|[\n\r]|[.;:]\s*)({escaped})\s*[:\-–—]?\s*",
+            lambda m: f"{m.group(1)}\n{m.group(2).strip()}\n",
+            text,
+        )
+
+    text = re.sub(r"\n{2,}", "\n", text)
+    return text
+
+
 def normalize_extracted_text(text: str) -> str:
     text = text.replace("\xa0", " ").replace("\u200b", " ")
+    text = text.replace("•", "\n- ")
+    text = text.replace("–", "-").replace("—", "-")
+    text = re.sub(r"\r\n|\r", "\n", text)
+
+    # Keep email cleanup local to extract_email().
+    # Do NOT remove spaces around every dot globally, because it can merge:
+    # "applications. PROJECTS" -> "applications.PROJECTS"
     text = re.sub(r"\s*@\s*", "@", text)
-    text = re.sub(r"\s*\.\s*", ".", text)
+
+    text = _add_newlines_around_section_headings(text)
+
     text = re.sub(r"[ \t\f\v]+", " ", text)
     text = re.sub(r"[ ]{2,}", " ", text)
-    text = re.sub(r"\r\n|\r", "\n", text)
     text = re.sub(r"\n\s*\n+", "\n", text)
     return text.strip()
-
 
 def extract_pdf_text(file_bytes: bytes) -> str:
     """Extract plain text from a PDF file using pypdf."""
@@ -288,37 +363,75 @@ def extract_skills(text: str) -> list[str]:
     return normalize_skills_list(found)
 
 
+def _clean_possible_heading(line: str) -> str:
+    """Remove bullets/icons/numbers before checking if a line is a section heading."""
+    return re.sub(r"^[^A-Za-z0-9]+|^[\d\.\)\(\-\s]+", "", line).strip()
+
+
+def _detect_section_header(line: str) -> tuple[str | None, str]:
+    """
+    Detect a resume section heading and return (section_name, content_after_heading).
+
+    This is stricter than plain regex.match so a bullet like
+    "Experience with MongoDB" is not wrongly treated as a section header.
+    """
+    cleaned = _clean_possible_heading(line)
+
+    for section_name, aliases in SECTION_ALIASES.items():
+        for alias in sorted(aliases, key=len, reverse=True):
+            pattern = rf"(?i)^{re.escape(alias)}\s*([:\-–—])?\s*(.*)$"
+            match = re.match(pattern, cleaned)
+            if not match:
+                continue
+
+            separator = match.group(1)
+            rest = match.group(2).strip()
+
+            # Header alone: "PROJECTS"
+            if not rest:
+                return section_name, ""
+
+            # Header with explicit separator: "Projects: Job Tracker"
+            if separator:
+                return section_name, rest
+
+            # Avoid false positives such as "Experience with REST APIs".
+            # Only treat no-separator text as a header when the remaining text is very short.
+            if len(rest) <= 25 and len(cleaned.split()) <= 5:
+                return section_name, rest
+
+    return None, ""
+
+
 def _split_into_sections(text: str) -> dict[str, str]:
     """
     Split resume text into sections based on common header keywords.
     Returns a dict mapping section name to its content.
+
+    The parser now handles headings that PDF extraction glues to previous text,
+    such as "applications.PROJECTS" or "MongoDB.CERTIFICATIONS".
     """
     lines = text.split("\n")
     sections: dict[str, list[str]] = {}
     current_section = "header"
     sections[current_section] = []
 
-    header_regex = {key: re.compile(pattern) for key, pattern in SECTION_PATTERNS.items()}
-
     for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
 
-        matched_section = None
-        for section_name, regex in header_regex.items():
-            if regex.fullmatch(stripped) or regex.match(stripped):
-                matched_section = section_name
-                break
+        matched_section, inline_content = _detect_section_header(stripped)
 
         if matched_section:
             current_section = matched_section
             sections.setdefault(current_section, [])
+            if inline_content:
+                sections[current_section].append(inline_content)
         else:
             sections.setdefault(current_section, []).append(stripped)
 
     return {key: "\n".join(value).strip() for key, value in sections.items()}
-
 
 def _get_section(sections: dict[str, str], *names: str) -> str:
     """Return the first matching section content, or empty string."""
@@ -380,3 +493,4 @@ def calculate_extraction_accuracy(profile: dict[str, Any]) -> float:
         if value:
             filled += 1
     return round((filled / len(fields)) * 100, 1)
+
