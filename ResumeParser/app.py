@@ -3,7 +3,6 @@ AI Recruitment & Talent Management Copilot
 Milestone 1: Resume Parser and Candidate Profiling
 Streamlit dashboard application.
 """
-
 from __future__ import annotations
 
 import html
@@ -16,6 +15,7 @@ import streamlit as st
 
 import database as db
 from parser import calculate_extraction_accuracy, parse_resume
+from scorer import calculate_ats_score
 
 
 # ── Streamlit cache helper ────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ st.set_page_config(
 
 
 # ── Custom CSS ────────────────────────────────────────────────────────────────
+# ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown(
     """
     <style>
@@ -75,7 +76,6 @@ st.markdown(
             color: var(--text) !important;
         }
 
-        /* Force readable text inside normal Streamlit markdown */
         [data-testid="stMarkdownContainer"],
         [data-testid="stMarkdownContainer"] p,
         [data-testid="stMarkdownContainer"] span,
@@ -92,6 +92,7 @@ st.markdown(
             color: var(--text) !important;
         }
 
+        /* Sidebar */
         [data-testid="stSidebar"] {
             background-color: var(--card) !important;
             border-right: 1px solid var(--border) !important;
@@ -100,12 +101,50 @@ st.markdown(
         [data-testid="stSidebar"] .stMarkdown h1 {
             font-size: 1.25rem !important;
             color: var(--blue) !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
         }
 
+        [data-testid="stSidebar"] div.stButton > button {
+            background-color: transparent !important;
+            color: #334155 !important;
+            border: none !important;
+            box-shadow: none !important;
+            text-align: left !important;
+            justify-content: flex-start !important;
+            font-weight: 600 !important;
+            padding: 0.5rem 0.75rem !important;
+            border-radius: 8px !important;
+            margin-bottom: 0.25rem !important;
+            width: 100% !important;
+        }
+
+        [data-testid="stSidebar"] div.stButton > button * {
+            color: #334155 !important;
+        }
+
+        [data-testid="stSidebar"] div.stButton > button:hover {
+            background-color: #f1f5f9 !important;
+            color: var(--text) !important;
+        }
+
+        [data-testid="stSidebar"] div.stButton > button:hover * {
+            color: var(--text) !important;
+        }
+
+        [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
+            background-color: var(--blue) !important;
+            color: #ffffff !important;
+            border-radius: 8px !important;
+        }
+
+        [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] * {
+            color: #ffffff !important;
+        }
+
+        /* Main headings */
         .main-heading {
             font-size: 2rem !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: var(--text) !important;
             margin-bottom: 0.25rem !important;
         }
@@ -116,6 +155,7 @@ st.markdown(
             margin-bottom: 1.5rem !important;
         }
 
+        /* Cards */
         .custom-card {
             background: var(--card) !important;
             color: var(--text) !important;
@@ -145,20 +185,20 @@ st.markdown(
         .custom-card a:hover,
         a {
             color: var(--blue-2) !important;
-            font-weight: 600 !important;
+            font-weight: 700 !important;
             text-decoration: none !important;
         }
 
         .card-title {
             font-size: 1.1rem !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: var(--text) !important;
             margin-bottom: 1rem !important;
         }
 
         .field-label {
             font-size: 0.75rem !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: var(--muted) !important;
             text-transform: uppercase !important;
             letter-spacing: 0.05em !important;
@@ -174,7 +214,7 @@ st.markdown(
 
         .section-heading {
             font-size: 0.95rem !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: var(--text) !important;
             margin: 0.75rem 0 0.35rem 0 !important;
         }
@@ -191,6 +231,7 @@ st.markdown(
             margin-bottom: 0.5rem !important;
         }
 
+        /* Skills */
         .skill-badge {
             display: inline-block !important;
             background-color: var(--badge-bg) !important;
@@ -198,10 +239,16 @@ st.markdown(
             padding: 0.25rem 0.75rem !important;
             border-radius: 9999px !important;
             font-size: 0.8rem !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             margin: 0.2rem 0.25rem 0.2rem 0 !important;
         }
 
+        .missing-badge {
+            background-color: #fee2e2 !important;
+            color: #b91c1c !important;
+        }
+
+        /* Candidate list */
         .candidate-list-info,
         .candidate-list-info *,
         .candidate-name,
@@ -226,9 +273,10 @@ st.markdown(
 
         .candidate-text strong {
             color: var(--text) !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
         }
 
+        /* Metrics */
         .metric-box {
             background: #f8fafc !important;
             border-radius: 8px !important;
@@ -247,16 +295,17 @@ st.markdown(
             font-size: 0.75rem !important;
             color: var(--muted) !important;
             margin-top: 0.15rem !important;
-            font-weight: 600 !important;
+            font-weight: 700 !important;
         }
 
+        /* Dashboard skill bars */
         .activity-item {
             padding: 0.4rem 0 !important;
         }
 
         .activity-name {
             color: var(--text) !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
         }
 
         .activity-meta {
@@ -274,7 +323,7 @@ st.markdown(
         .skill-name {
             flex: 1 !important;
             min-width: 8rem !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             color: var(--text) !important;
         }
 
@@ -296,25 +345,155 @@ st.markdown(
             min-width: 2.5rem !important;
             text-align: right !important;
             color: var(--muted) !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
         }
 
+        /* DB status */
         .status-connected {
             color: var(--green) !important;
             font-size: 0.85rem !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
         }
 
         .status-disconnected {
             color: var(--red) !important;
             font-size: 0.85rem !important;
+            font-weight: 800 !important;
+        }
+
+        /* Inputs */
+        .stTextInput input,
+        .stTextInput textarea,
+        .stTextArea textarea,
+        [data-testid="stTextArea"] textarea {
+            background-color: var(--card) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 8px !important;
+        }
+
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder,
+        [data-testid="stTextArea"] textarea::placeholder {
+            color: #64748b !important;
+            opacity: 1 !important;
+        }
+
+        .stTextArea textarea:focus,
+        [data-testid="stTextArea"] textarea:focus {
+            border: 1px solid var(--blue-2) !important;
+            box-shadow: 0 0 0 1px var(--blue-2) !important;
+        }
+
+        [data-testid="stTextArea"] textarea:disabled,
+        .stTextArea textarea:disabled {
+            background-color: #ffffff !important;
+            color: var(--text) !important;
+            opacity: 1 !important;
+            -webkit-text-fill-color: var(--text) !important;
+        }
+
+        [data-testid="stTextArea"] label,
+        [data-testid="stTextArea"] label * {
+            color: var(--text) !important;
             font-weight: 700 !important;
         }
 
+        /* File uploader */
         [data-testid="stFileUploader"] {
+            background-color: #ffffff !important;
             border: 2px dashed var(--border) !important;
+            border-radius: 12px !important;
+            padding: 0.75rem !important;
+        }
+
+        [data-testid="stFileUploader"] section {
+            background-color: #ffffff !important;
+            border: none !important;
+        }
+
+        [data-testid="stFileUploader"] section > div {
+            background-color: #ffffff !important;
+        }
+
+        [data-testid="stFileUploader"] section * {
+            color: var(--text) !important;
+        }
+
+        [data-testid="stFileUploader"] small,
+        [data-testid="stFileUploader"] span {
+            color: var(--muted) !important;
+        }
+
+        [data-testid="stFileUploader"] button {
+            background-color: var(--blue) !important;
+            color: #ffffff !important;
+            border: 1px solid var(--blue) !important;
             border-radius: 8px !important;
-            padding: 0.5rem !important;
+            font-weight: 800 !important;
+        }
+
+        [data-testid="stFileUploader"] button *,
+        [data-testid="stFileUploader"] button p,
+        [data-testid="stFileUploader"] button span {
+            color: #ffffff !important;
+        }
+
+        /* Uploaded file chip visible and readable */
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
+            display: flex !important;
+            visibility: visible !important;
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+            padding: 0.45rem 0.6rem !important;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] > div,
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] div {
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+            color: var(--text) !important;
+            opacity: 1 !important;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] p,
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] span,
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] small,
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"],
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFileSize"] {
+            color: var(--text) !important;
+            opacity: 1 !important;
+            font-weight: 700 !important;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFileSize"],
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] small {
+            color: var(--muted) !important;
+            font-weight: 600 !important;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] svg,
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] svg * {
+            fill: var(--blue) !important;
+            stroke: var(--blue) !important;
+            color: var(--blue) !important;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] button {
+            background-color: #eff6ff !important;
+            color: var(--blue) !important;
+            border: 1px solid #bfdbfe !important;
+            border-radius: 50% !important;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] button * {
+            color: var(--blue) !important;
+            fill: var(--blue) !important;
+            stroke: var(--blue) !important;
         }
 
         .upload-hint {
@@ -325,57 +504,59 @@ st.markdown(
 
         .file-name {
             color: var(--text) !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             font-size: 0.9rem !important;
         }
 
-        .stTextInput input,
-        .stTextInput textarea,
-        .stTextArea textarea {
-            background-color: var(--card) !important;
-            color: var(--text) !important;
+        /* Main content buttons */
+        [data-testid="stAppViewContainer"] div.stButton > button {
+            background-color: var(--blue) !important;
+            color: #ffffff !important;
+            border: 1px solid var(--blue) !important;
+            border-radius: 8px !important;
+            font-weight: 800 !important;
+        }
+
+        [data-testid="stAppViewContainer"] div.stButton > button * {
+            color: #ffffff !important;
+        }
+
+        [data-testid="stAppViewContainer"] div.stButton > button:hover {
+            background-color: var(--blue-2) !important;
+            border-color: var(--blue-2) !important;
+            color: #ffffff !important;
+        }
+
+        /* Expander */
+        [data-testid="stExpander"] {
+            background-color: #ffffff !important;
             border: 1px solid var(--border) !important;
+            border-radius: 10px !important;
         }
 
-        .stTextInput input::placeholder,
-        .stTextArea textarea::placeholder {
-            color: #64748b !important;
-            opacity: 1 !important;
+        [data-testid="stExpander"] details {
+            background-color: #ffffff !important;
+            border-radius: 10px !important;
         }
 
+        [data-testid="stExpander"] summary {
+            background-color: #ffffff !important;
+            color: var(--text) !important;
+            font-weight: 800 !important;
+            border-radius: 10px !important;
+        }
+
+        [data-testid="stExpander"] summary * {
+            color: var(--text) !important;
+        }
+
+        /* Dataframe */
         [data-testid="stDataFrame"],
         [data-testid="stDataFrame"] * {
             color: var(--text) !important;
         }
 
-        /* Sidebar buttons */
-        [data-testid="stSidebar"] button[data-testid^="stBaseButton-"] {
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            color: #334155 !important;
-            text-align: left !important;
-            justify-content: flex-start !important;
-            padding: 0.5rem 0.75rem !important;
-            border-radius: 8px !important;
-            margin-bottom: 0.25rem !important;
-            display: flex !important;
-            width: 100% !important;
-            font-size: 0.9rem !important;
-            font-weight: 600 !important;
-        }
-
-        [data-testid="stSidebar"] button[data-testid^="stBaseButton-"]:hover {
-            background-color: #f1f5f9 !important;
-            color: var(--text) !important;
-        }
-
-        [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
-            background-color: #eff6ff !important;
-            color: var(--blue) !important;
-            font-weight: 700 !important;
-        }
-
+        /* Sidebar collapse icons */
         [data-testid="collapsedControl"] button,
         [data-testid="stSidebarCollapseButton"],
         [data-testid="stSidebarCollapseButton"] button,
@@ -1102,7 +1283,10 @@ elif active_page == "Resume Upload":
                     if db_ok:
                         response = db.save_candidate(profile)
                         saved_to_db, parse_msg, save_state = parse_db_save_response(response)
-
+                    if save_state == "updated":
+                         parse_msg = "Candidate already exists — existing profile was updated."
+                    elif save_state == "inserted":
+                        parse_msg = "New candidate inserted successfully."
                     is_scanned_pdf = (
                         profile.get("source_file_type") == "pdf"
                         and len(profile.get("raw_text", "").strip()) < 20
@@ -1147,7 +1331,10 @@ elif active_page == "Resume Upload":
     if st.session_state.last_profile:
         if st.session_state.get("parse_complete"):
             if st.session_state.get("saved_to_db"):
-                st.success(st.session_state.get("parse_msg", "Candidate saved successfully."))
+                if st.session_state.get("save_state") == "updated":
+                    st.info(st.session_state.get("parse_msg", "Candidate already exists — profile updated."))
+                else:
+                    st.success(st.session_state.get("parse_msg", "Candidate saved successfully."))
             else:
                 st.warning(st.session_state.get("parse_msg", "Database offline — profile parsed but not saved."))
 
@@ -1199,8 +1386,75 @@ elif active_page == "Resume Upload":
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # ── ATS Score & Skill Gap Analysis ───────────────────────────────────────
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">🎯 ATS Score & Skill Gap Analysis</p>', unsafe_allow_html=True)
+
+        job_description = st.text_area(
+            "Paste Job Description",
+            placeholder="Paste the job description here to calculate ATS score and missing skills...",
+            height=180,
+            key="job_description_input",
+        )
+
+        if st.button("Calculate ATS Score", use_container_width=True):
+            if not job_description.strip():
+                st.warning("Please paste a job description first.")
+            else:
+                ats_result = calculate_ats_score(profile, job_description)
+
+                st.markdown(
+                    f"""
+                    <div class="metric-box">
+                        <div class="metric-value">{ats_result["ats_score"]}%</div>
+                        <div class="metric-label">ATS Score - {ats_result["verdict"]}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                st.markdown('<p class="field-label">Matched Skills</p>', unsafe_allow_html=True)
+
+                if ats_result["matched_skills"]:
+                    matched_html = "".join(
+                        f'<span class="skill-badge">{html.escape(skill)}</span>'
+                        for skill in ats_result["matched_skills"]
+                    )
+                    st.markdown(matched_html, unsafe_allow_html=True)
+                else:
+                    st.markdown('<p class="field-value">No matched skills found.</p>', unsafe_allow_html=True)
+
+                st.markdown('<p class="field-label">Missing Skills / Skill Gap</p>', unsafe_allow_html=True)
+
+                if ats_result["missing_skills"]:
+                    missing_html = "".join(
+                        f'<span class="skill-badge missing-badge">{html.escape(skill)}</span>'
+                        for skill in ats_result["missing_skills"]
+                    )
+                    st.markdown(missing_html, unsafe_allow_html=True)
+                else:
+                    st.success("No major skill gap found.")
+
+                st.markdown('<p class="field-label">Recommendations</p>', unsafe_allow_html=True)
+
+                if ats_result["recommendations"]:
+                    for rec in ats_result["recommendations"]:
+                        st.markdown(
+                            f'<p class="field-value">• {html.escape(rec)}</p>',
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        '<p class="field-value">Candidate profile is well aligned with the job description.</p>',
+                        unsafe_allow_html=True,
+                    )
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<p class="card-title">🕐 Recently Processed Candidates</p>', unsafe_allow_html=True)
+
+
 
     table_rows = []
     if db_ok:
