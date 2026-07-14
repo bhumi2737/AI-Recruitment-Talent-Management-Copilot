@@ -12,10 +12,46 @@ from datetime import datetime
 from typing import Any
 
 import streamlit as st
+import requests
 
 import database as db
 from parser import calculate_extraction_accuracy, parse_resume
 from scorer import calculate_ats_score
+from jd_matcher import match_candidate_to_job
+
+# ── Mock Jobs Data ────────────────────────────────────────────────────────────
+DEFAULT_MOCK_JOBS = [
+    {
+        "job_id": "JOB-MOCK1",
+        "job_title": "Senior Python Backend Engineer",
+        "company_name": "TechCorp Solutions",
+        "location": "San Francisco, CA (Hybrid)",
+        "experience_required": "5+ Years",
+        "required_skills": ["Python", "FastAPI", "Docker", "PostgreSQL", "REST API"],
+        "job_description": "We are seeking a Senior Python Backend Engineer to design and implement scalable microservices. You will work with FastAPI, Docker, and PostgreSQL on a daily basis.",
+        "salary": "$130,000 - $160,000",
+    },
+    {
+        "job_id": "JOB-MOCK2",
+        "job_title": "Data Scientist / ML Practitioner",
+        "company_name": "AI & Insights Ltd",
+        "location": "Remote (US/Canada)",
+        "experience_required": "3+ Years",
+        "required_skills": ["Python", "TensorFlow", "PyTorch", "Machine Learning", "Scikit-learn"],
+        "job_description": "Join our AI & Insights team to build and deploy machine learning models. Experience with TensorFlow or PyTorch and classical ML packages is required.",
+        "salary": "$120,000 - $150,000",
+    },
+    {
+        "job_id": "JOB-MOCK3",
+        "job_title": "Fullstack Software Engineer (React/Node)",
+        "company_name": "WebFlow Inc",
+        "location": "New York, NY",
+        "experience_required": "2+ Years",
+        "required_skills": ["React", "JavaScript", "TypeScript", "Node.js", "HTML", "CSS"],
+        "job_description": "Looking for a fullstack engineer to develop user interfaces in React and backend services in Node.js. Must be comfortable writing TypeScript, HTML, and CSS.",
+        "salary": "$100,000 - $130,000",
+    }
+]
 
 
 # ── Streamlit cache helper ────────────────────────────────────────────────────
@@ -864,6 +900,97 @@ def load_db_status() -> bool:
     ok, _ = db.test_connection()
     return ok
 
+
+@st_cache_data_no_spinner(ttl=30)
+def load_api_status() -> bool:
+    try:
+        response = requests.get("http://127.0.0.1:8000/", timeout=1.0)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+@st_cache_data_no_spinner(ttl=30)
+def api_get_jobs() -> list[dict[str, Any]]:
+    try:
+        response = requests.get("http://127.0.0.1:8000/api/jobs/", timeout=1.5)
+        if response.status_code == 200:
+            return response.json()
+    except Exception:
+        pass
+    return []
+
+
+def load_jobs() -> list[dict[str, Any]]:
+    api_ok = load_api_status()
+    if api_ok:
+        jobs = api_get_jobs()
+        if jobs:
+            return jobs
+    db_ok = load_db_status()
+    if db_ok:
+        try:
+            import db_jobs
+            jobs = db_jobs.get_all_jobs()
+            if jobs:
+                return jobs
+        except Exception:
+            pass
+    return DEFAULT_MOCK_JOBS
+
+
+def save_job(job_data: dict[str, Any]) -> tuple[bool, str]:
+    api_ok = load_api_status()
+    if api_ok:
+        try:
+            response = requests.post("http://127.0.0.1:8000/api/jobs/", json=job_data, timeout=2.0)
+            if response.status_code == 201:
+                return True, "Job description created successfully via API."
+            else:
+                detail = response.json().get("detail", "Unknown error")
+                return False, f"API Error: {detail}"
+        except Exception as exc:
+            return False, f"Failed to connect to API: {exc}"
+    
+    db_ok = load_db_status()
+    if db_ok:
+        try:
+            import db_jobs
+            job_id = db_jobs.create_job(job_data)
+            return True, f"Job description created successfully in Database (API offline). Job ID: {job_id}"
+        except Exception as exc:
+            return False, f"Database Error: {exc}"
+            
+    return False, "Both API and Database are offline. Cannot save job."
+
+
+def delete_job(job_id: str) -> tuple[bool, str]:
+    api_ok = load_api_status()
+    if api_ok:
+        try:
+            response = requests.delete(f"http://127.0.0.1:8000/api/jobs/{job_id}", timeout=2.0)
+            if response.status_code == 200:
+                return True, "Job description deleted successfully via API."
+            else:
+                detail = response.json().get("detail", "Unknown error")
+                return False, f"API Error: {detail}"
+        except Exception as exc:
+            return False, f"Failed to delete via API: {exc}"
+            
+    db_ok = load_db_status()
+    if db_ok:
+        try:
+            import db_jobs
+            success = db_jobs.delete_job(job_id)
+            if success:
+                return True, "Job description deleted successfully from Database (API offline)."
+            else:
+                return False, "Job ID not found in Database."
+        except Exception as exc:
+            return False, f"Database Error: {exc}"
+            
+    return False, "Both API and Database are offline. Cannot delete job."
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("# 📋 RC Recruitment Copilot")
@@ -904,6 +1031,7 @@ with st.sidebar:
         st.markdown('<p class="status-connected">● Database Connected</p>', unsafe_allow_html=True)
     else:
         st.markdown('<p class="status-disconnected">● Database Offline</p>', unsafe_allow_html=True)
+        st.caption(f"Connection error: {db_msg}")
         st.caption("Parsed data will still display, but will not be saved.")
 
     # if st.button("🧹 Clear Local Session", use_container_width=True):
@@ -1132,50 +1260,112 @@ elif active_page == "Job Postings":
     st.markdown('<p class="main-heading">Job Postings</p>', unsafe_allow_html=True)
     st.markdown('<p class="main-subtitle">Manage open vacancies and match candidate profiles</p>', unsafe_allow_html=True)
 
-    jobs = [
-        {
-            "title": "Senior Python Backend Engineer",
-            "department": "Engineering",
-            "skills": ["Python", "FastAPI", "Docker", "PostgreSQL", "REST API"],
-            "experience": "5+ Years",
-        },
-        {
-            "title": "Data Scientist / ML Practitioner",
-            "department": "AI & Insights",
-            "skills": ["Python", "TensorFlow", "PyTorch", "Machine Learning", "Scikit-learn"],
-            "experience": "3+ Years",
-        },
-        {
-            "title": "Fullstack Software Engineer (React/Node)",
-            "department": "Engineering",
-            "skills": ["React", "JavaScript", "TypeScript", "Node.js", "HTML", "CSS"],
-            "experience": "2+ Years",
-        },
-    ]
-
-    for idx, job in enumerate(jobs):
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        col_j1, col_j2 = st.columns([3, 1])
-
-        with col_j1:
-            st.markdown(f"### {html.escape(job['title'])}")
-            st.markdown(
-                f"**Department:** {html.escape(job['department'])} &nbsp;&nbsp;&nbsp;&nbsp; "
-                f"**Experience Required:** {html.escape(job['experience'])}",
-                unsafe_allow_html=True,
+    # ── Create Job Expander & Form ────────────────────────────────────────────
+    with st.expander("➕ Create New Job Description"):
+        with st.form("create_job_form", clear_on_submit=True):
+            job_title = st.text_input("Job Title*", placeholder="e.g. Senior Software Engineer")
+            company_name = st.text_input("Company Name*", placeholder="e.g. Acme Corp")
+            
+            # Skills input
+            required_skills_str = st.text_input(
+                "Required Skills (comma-separated)*", 
+                placeholder="e.g. Python, FastAPI, Docker"
             )
-            st.markdown(format_skill_badges(job["skills"], max_display=10), unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                experience_required = st.text_input("Experience Required*", placeholder="e.g. 3-5 Years")
+            with col2:
+                location = st.text_input("Location*", placeholder="e.g. San Francisco, CA (Hybrid)")
+            with col3:
+                salary = st.text_input("Salary / Compensation", placeholder="e.g. $120,000 - $150,000")
+                
+            job_description = st.text_area(
+                "Job Description*", 
+                placeholder="Provide details about the role, responsibilities, and requirements..."
+            )
+            
+            submitted = st.form_submit_button("Create Job Posting", use_container_width=True)
+            if submitted:
+                if not (job_title.strip() and company_name.strip() and required_skills_str.strip() and experience_required.strip() and job_description.strip()):
+                    st.error("Please fill in all required fields (marked with *).")
+                else:
+                    skills_list = [s.strip() for s in required_skills_str.split(",") if s.strip()]
+                    job_data = {
+                        "job_title": job_title.strip(),
+                        "company_name": company_name.strip(),
+                        "required_skills": skills_list,
+                        "experience_required": experience_required.strip(),
+                        "location": location.strip() or "Remote",
+                        "salary": salary.strip() or "Not Specified",
+                        "job_description": job_description.strip(),
+                    }
+                    success, msg = save_job(job_data)
+                    if success:
+                        st.success(msg)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
-        with col_j2:
-            st.write("")
-            st.write("")
-            if st.button("🔍 Match Candidates", key=f"match_j_{idx}", use_container_width=True):
-                st.session_state.active_page = "Candidates"
-                st.session_state.selected_candidate_id = None
-                st.session_state.search_filter = job["skills"][0]
-                st.rerun()
+    # ── Load and Render Job Postings ──────────────────────────────────────────
+    jobs = load_jobs()
+    
+    if not jobs:
+        st.info("No job postings available. Click the button above to create one.")
+    else:
+        for idx, job in enumerate(jobs):
+            jid = job.get("job_id") or f"MOCK-{idx}"
+            title = job.get("job_title", "Untitled Role")
+            company = job.get("company_name", "Unknown Company")
+            loc = job.get("location", "Not Specified")
+            exp = job.get("experience_required", "Not Specified")
+            sal = job.get("salary", "Not Specified")
+            skills = job.get("required_skills") or []
+            desc = job.get("job_description", "")
 
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+            col_j1, col_j2 = st.columns([3, 1])
+
+            with col_j1:
+                st.markdown(f"### {html.escape(title)}")
+                st.markdown(
+                    f"🏢 **{html.escape(company)}** &nbsp;&nbsp;|&nbsp;&nbsp; "
+                    f"📍 {html.escape(loc)} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                    f"💼 {html.escape(exp)} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                    f"💰 {html.escape(sal)}",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(format_skill_badges(skills, max_display=12), unsafe_allow_html=True)
+                if desc:
+                    with st.expander("📄 View Job Description Text"):
+                        st.write(desc)
+
+            with col_j2:
+                st.write("")
+                st.write("")
+                match_btn_key = f"match_j_{jid}_{idx}"
+                first_skill = skills[0] if skills else ""
+                if st.button("🔍 Match Candidates", key=match_btn_key, use_container_width=True):
+                    st.session_state.active_page = "Candidates"
+                    st.session_state.selected_candidate_id = None
+                    st.session_state.search_filter = first_skill
+                    st.rerun()
+
+                # Only show delete button for non-mock or if DB/API is connected
+                delete_btn_key = f"delete_j_{jid}_{idx}"
+                if st.button("🗑️ Delete Job", key=delete_btn_key, use_container_width=True, type="secondary"):
+                    success, msg = delete_job(jid)
+                    if success:
+                        st.success(msg)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
     st.stop()
 
@@ -1390,18 +1580,49 @@ elif active_page == "Resume Upload":
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.markdown('<p class="card-title">🎯 ATS Score & Skill Gap Analysis</p>', unsafe_allow_html=True)
 
-        job_description = st.text_area(
-            "Paste Job Description",
-            placeholder="Paste the job description here to calculate ATS score and missing skills...",
-            height=180,
-            key="job_description_input",
-        )
+        # Let user choose a saved vacancy or manual pasting
+        jobs_pool = load_jobs()
+        
+        mode = st.radio("Choose evaluation mode:", ["Select Saved Vacancy", "Paste Custom Job Description"], horizontal=True)
+        
+        selected_job = None
+        job_description = ""
+        
+        if mode == "Select Saved Vacancy" and jobs_pool:
+            job_options = [f"{j.get('job_title')} ({j.get('company_name')})" for j in jobs_pool]
+            selected_job_title = st.selectbox("Select saved Job Post:", options=job_options)
+            job_index = job_options.index(selected_job_title)
+            selected_job = jobs_pool[job_index]
+            job_description = selected_job.get("job_description", "")
+            
+            st.markdown(
+                f"""
+                <div style="background-color: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem;">
+                    <strong>Company:</strong> {html.escape(selected_job.get("company_name", ""))} | 
+                    <strong>Location:</strong> {html.escape(selected_job.get("location", ""))} | 
+                    <strong>Exp:</strong> {html.escape(selected_job.get("experience_required", ""))}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            job_description = st.text_area(
+                "Paste Custom Job Description Text",
+                placeholder="Paste the job description here to calculate ATS score...",
+                height=180,
+                key="job_description_input",
+            )
 
         if st.button("Calculate ATS Score", use_container_width=True):
             if not job_description.strip():
-                st.warning("Please paste a job description first.")
+                st.warning("Please select a job or paste a job description first.")
             else:
-                ats_result = calculate_ats_score(profile, job_description)
+                if selected_job:
+                    # Run structured match
+                    ats_result = match_candidate_to_job(profile, selected_job)
+                else:
+                    # Run generic text match
+                    ats_result = calculate_ats_score(profile, job_description)
 
                 st.markdown(
                     f"""
@@ -1412,6 +1633,10 @@ elif active_page == "Resume Upload":
                     """,
                     unsafe_allow_html=True,
                 )
+                
+                if "experience_feedback" in ats_result:
+                    st.markdown('<p class="field-label">Experience Check</p>', unsafe_allow_html=True)
+                    st.markdown(f'<p class="field-value" style="font-weight: 600;">{html.escape(ats_result["experience_feedback"])}</p>', unsafe_allow_html=True)
 
                 st.markdown('<p class="field-label">Matched Skills</p>', unsafe_allow_html=True)
 
@@ -1434,6 +1659,10 @@ elif active_page == "Resume Upload":
                     st.markdown(missing_html, unsafe_allow_html=True)
                 else:
                     st.success("No major skill gap found.")
+                    
+                if "keyword_matches" in ats_result and ats_result["keyword_matches"]:
+                    st.markdown('<p class="field-label">Context Keywords Overlap</p>', unsafe_allow_html=True)
+                    st.markdown(", ".join(ats_result["keyword_matches"]))
 
                 st.markdown('<p class="field-label">Recommendations</p>', unsafe_allow_html=True)
 
