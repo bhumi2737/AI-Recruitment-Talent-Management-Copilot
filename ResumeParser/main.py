@@ -9,6 +9,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import job_routes
+import jd_routes
 
 # Initialize FastAPI App
 app = FastAPI(
@@ -28,6 +29,8 @@ app.add_middleware(
 
 # Include Job router
 app.include_router(job_routes.router)
+# Include JD Match router
+app.include_router(jd_routes.router)
 
 
 @app.get("/", tags=["Health"])

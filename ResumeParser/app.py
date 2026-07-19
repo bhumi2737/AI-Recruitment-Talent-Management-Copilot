@@ -1001,6 +1001,7 @@ with st.sidebar:
         ("📤", "Resume Upload"),
         ("👥", "Candidates"),
         ("💼", "Job Postings"),
+        ("🤝", "JD Matching"),
         ("📊", "Analytics"),
         ("⚙️", "Settings"),
     ]
@@ -1195,7 +1196,7 @@ elif active_page == "Candidates":
                 )
 
             st.markdown('<p class="field-label">Skills</p>', unsafe_allow_html=True)
-            st.markdown(format_skill_badges(candidate.get("skills"), max_display=12), unsafe_allow_html=True)
+            st.markdown(format_skill_badges(candidate.get("skills"), max_display=999), unsafe_allow_html=True)
 
             st.markdown("---")
             d_col1, d_col2 = st.columns(2)
@@ -1337,7 +1338,7 @@ elif active_page == "Job Postings":
                     f"💰 {html.escape(sal)}",
                     unsafe_allow_html=True,
                 )
-                st.markdown(format_skill_badges(skills, max_display=12), unsafe_allow_html=True)
+                st.markdown(format_skill_badges(skills, max_display=999), unsafe_allow_html=True)
                 if desc:
                     with st.expander("📄 View Job Description Text"):
                         st.write(desc)
@@ -1396,6 +1397,65 @@ elif active_page == "Analytics":
         st.bar_chart(df_funnel, color="#1e40af")
         st.markdown("</div>", unsafe_allow_html=True)
 
+    st.stop()
+
+
+elif active_page == "JD Matching":
+    st.markdown('<p class="main-heading">Job Description Matching</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Compare candidates against Job Descriptions</p>', unsafe_allow_html=True)
+    
+    import db_jobs
+    from jd_matching_service import compare_candidates_with_jd
+    
+    jds = db_jobs.get_all_jobs()
+    if not jds:
+        st.info("No Job Descriptions found. Please add a Job Description via API or DB to use this feature.")
+    else:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        # Search / Select JD
+        jd_options = {jd["job_id"]: f"{jd['job_title']} at {jd.get('company_name', 'Unknown')}" for jd in jds}
+        selected_jd_id = st.selectbox("Select a Job Description to Match", options=list(jd_options.keys()), format_func=lambda x: jd_options[x])
+        
+        if st.button("Compare", type="primary"):
+            with st.spinner("Comparing candidates..."):
+                results = compare_candidates_with_jd(selected_jd_id)
+                
+            if results:
+                st.success(f"Matched against {len(results)} candidates.")
+                
+                # Display table
+                # Format the data for dataframe display
+                df_data = []
+                for res in results:
+                    matched_str = ", ".join(res["matched_skills"]) if res["matched_skills"] else "None"
+                    missing_str = ", ".join(res["missing_skills"]) if res["missing_skills"] else "None"
+                    added_str = ", ".join(res["additional_skills"]) if res["additional_skills"] else "None"
+                    
+                    df_data.append({
+                        "Candidate": res["candidate_name"],
+                        "Match %": res["match_percentage"],
+                        "Matched Skills": matched_str,
+                        "Missing Skills": missing_str,
+                        "Additional Skills": added_str
+                    })
+                
+                st.dataframe(
+                    df_data,
+                    column_config={
+                        "Match %": st.column_config.ProgressColumn(
+                            "Match %",
+                            help="Skill Match Percentage",
+                            format="%f%%",
+                            min_value=0,
+                            max_value=100,
+                        ),
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.warning("No candidates found in database to compare.")
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 
@@ -1562,7 +1622,7 @@ elif active_page == "Resume Upload":
             )
 
         st.markdown('<p class="field-label">Skills</p>', unsafe_allow_html=True)
-        st.markdown(format_skill_badges(profile.get("skills"), max_display=20), unsafe_allow_html=True)
+        st.markdown(format_skill_badges(profile.get("skills"), max_display=999), unsafe_allow_html=True)
 
         st.markdown("---")
 
