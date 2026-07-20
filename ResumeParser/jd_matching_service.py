@@ -44,46 +44,34 @@ def fetch_all_candidates() -> list[dict[str, Any]]:
     except Exception:
         return []
 
+from jd_matcher import calculate_candidate_score
+
 def compare_candidates_with_jd(jd_id: str) -> list[dict[str, Any]]:
     """
-    Compares all parsed candidates with the given JD.
+    Compares all parsed candidates with the given JD using the centralized scoring engine.
     Returns a ranked list of candidates sorted by match percentage.
     """
     jd = db_jobs.get_job_by_id(jd_id)
     if not jd:
         return []
 
-    jd_skills = get_normalized_skills(jd.get("required_skills", []))
     candidates = fetch_all_candidates()
     
     results = []
     for cand in candidates:
-        cand_skills = get_normalized_skills(cand.get("skills", []))
+        ats_result = calculate_candidate_score(cand, jd)
         
-        matched_skills = list(jd_skills.intersection(cand_skills))
-        missing_skills = list(jd_skills.difference(cand_skills))
-        additional_skills = list(cand_skills.difference(jd_skills))
-        
-        # Calculate percentage
-        if len(jd_skills) > 0:
-            match_percentage = round((len(matched_skills) / len(jd_skills)) * 100, 2)
-        else:
-            match_percentage = 100.0 if len(cand_skills) > 0 else 0.0
-            
-        # Map back to original case for display if possible (optional, but requested output just needs the lists)
-        # We'll just return the normalized ones for simplicity as per requirement example
-        
-        # The prompt requires this output structure:
-        # candidate_name, email, matched_skills, missing_skills, additional_skills, match_percentage
         results.append({
+            "candidate_id": str(cand.get("_id", "")),
             "candidate_name": cand.get("full_name", "Unknown Candidate"),
             "email": cand.get("email", ""),
-            "matched_skills": matched_skills,
-            "missing_skills": missing_skills,
-            "additional_skills": additional_skills,
-            "match_percentage": match_percentage
+            "matched_skills": ats_result.get("matched_skills", []),
+            "missing_skills": ats_result.get("missing_skills", []),
+            "additional_skills": ats_result.get("extra_skills", []),
+            "match_percentage": ats_result.get("hiring_score", 0),
+            "recommendation": ats_result.get("recommendation", "Not Recommended")
         })
         
-    # Sort in descending order of match percentage
+    # Sort in descending order of match percentage (hiring score)
     results.sort(key=lambda x: x["match_percentage"], reverse=True)
     return results

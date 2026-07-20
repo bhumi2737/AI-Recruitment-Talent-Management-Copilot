@@ -150,6 +150,42 @@ def save_candidate(profile: dict[str, Any]) -> tuple[bool, str, str | None, str 
         return False, f"Failed to save candidate: {exc}", None, None
 
 
+def save_evaluation(job_id: str, candidate_id: str, hiring_score: int, recommendation: str, score_breakdown: dict) -> tuple[bool, str]:
+    """
+    Store candidate evaluation results in the evaluations collection.
+    """
+    try:
+        with get_mongo_client() as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            col = db["evaluations"]
+            
+            evaluation_doc = {
+                "job_id": job_id,
+                "candidate_id": candidate_id,
+                "hiring_score": hiring_score,
+                "recommendation": recommendation,
+                "score_breakdown": score_breakdown,
+                "evaluation_time": datetime.datetime.utcnow(),
+            }
+            col.insert_one(evaluation_doc)
+            return True, "Evaluation saved successfully"
+    except Exception as exc:
+        return False, f"Failed to save evaluation: {exc}"
+
+def get_all_evaluations(limit: int = 100) -> list[dict]:
+    """
+    Fetch the most recent evaluations from the database.
+    """
+    try:
+        with get_mongo_client() as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            col = db["evaluations"]
+            _pymongo = _get_pymongo()
+            return list(col.find({}, {"_id": 0}).sort("evaluation_time", _pymongo.DESCENDING).limit(limit))
+    except Exception:
+        return []
+
+
 def get_recent_candidates(limit: int = 10) -> tuple[list[dict], str | None]:
     """
     Fetch the most recently saved or updated candidates.

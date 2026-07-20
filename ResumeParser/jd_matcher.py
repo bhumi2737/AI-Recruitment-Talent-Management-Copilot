@@ -92,11 +92,13 @@ def check_experience_match(candidate_exp_text: str, jd_exp_text: str) -> tuple[f
         return 0.4, f"Experience alignment: Candidate has {cand_years} years, which is significantly below the requested {req_years}+ years."
 
 
-def match_candidate_to_job(candidate: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
+def calculate_candidate_score(candidate: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
     """
     Evaluates a candidate profile against a structured Job Description.
     Calculates detailed ATS score, skill match %, missing skills, and recommendations.
     """
+    job_id = job.get("job_id", "Unknown Job")
+
     # 1. Skill Match Calculations
     candidate_skills = normalize_candidate_skills(candidate.get("skills", []))
     
@@ -116,56 +118,78 @@ def match_candidate_to_job(candidate: dict[str, Any], job: dict[str, Any]) -> di
     
     matched_skills = sorted(list(candidate_set.intersection(required_set)))
     missing_skills = sorted(list(required_set.difference(candidate_set)))
+    extra_skills = sorted(list(candidate_set.difference(required_set)))
     
     if required_skills:
         skill_match_percent = round((len(matched_skills) / len(required_skills)) * 100)
+        # Ensure we don't return 0 if there are matched skills
+        if len(matched_skills) > 0 and skill_match_percent == 0:
+            skill_match_percent = 1
     else:
         skill_match_percent = 100 # No skills required -> 100% skill match by default
         
-    # 2. Profile Completeness
-    profile_completeness = calculate_profile_completeness(candidate)
-    
-    # 3. Keyword Context Match
+    # 2. Keyword Context Match (used for project relevance)
     jd_keywords = extract_keywords_from_text(job.get("job_description", ""))
-    candidate_raw_text = candidate.get("raw_text", "").lower()
     
-    keyword_matches = []
-    if jd_keywords and candidate_raw_text:
-        for kw in jd_keywords:
-            if re.search(r"\b" + re.escape(kw) + r"\b", candidate_raw_text):
-                keyword_matches.append(kw)
-        keyword_match_percent = round((len(keyword_matches) / len(jd_keywords)) * 100)
-    else:
-        keyword_match_percent = 0
-        
-    # 4. Experience Match
+    # 3. Experience Match
     exp_multiplier, exp_feedback = check_experience_match(
         candidate.get("experience", ""), 
         job.get("experience_required", "")
     )
-    
-    # 5. ATS Scoring (Refined algorithm)
-    # Weights: Skills (55%), Keywords/Context (15%), Completeness & Contact (15%), Experience alignment (15%)
-    skill_score = skill_match_percent * 0.55
-    keyword_score = keyword_match_percent * 0.15
-    completeness_score = profile_completeness * 0.10
-    
-    contact_score = 5 if candidate.get("email") and candidate.get("phone") else 2.5
-    education_score = 5 if candidate.get("education") else 0
-    experience_weight = (15 * exp_multiplier)
-    
-    ats_score = round(skill_score + keyword_score + completeness_score + contact_score + education_score + experience_weight)
-    ats_score = min(100, max(0, ats_score))
-    
-    # Verdicts
-    if ats_score >= 80:
-        verdict = "Strong Match"
-    elif ats_score >= 60:
-        verdict = "Moderate Match"
+    experience_match_percent = round(exp_multiplier * 100)
+
+    # 4. Education Match
+    education_match_percent = 100 if candidate.get("education") else 0
+
+    # 5. Project Relevance
+    projects_text = candidate.get("projects", "").lower()
+    if not projects_text:
+        project_relevance_percent = 0
     else:
-        verdict = "Weak Match"
+        if jd_keywords:
+            proj_matches = [kw for kw in jd_keywords if re.search(r"\b" + re.escape(kw) + r"\b", projects_text)]
+            project_relevance_percent = round((len(proj_matches) / len(jd_keywords)) * 100)
+            project_relevance_percent = min(100, max(50, project_relevance_percent * 2)) # scale up slightly if they have projects
+        else:
+            project_relevance_percent = 100
+
+    # 6. Certification Match
+    cert_text = candidate.get("certifications", "").lower()
+    if not cert_text:
+        certification_match_percent = 0
+    else:
+        if required_skills:
+            cert_matches = [sk for sk in required_skills if re.search(r"\b" + re.escape(sk.lower()) + r"\b", cert_text)]
+            certification_match_percent = round((len(cert_matches) / len(required_skills)) * 100) if cert_matches else 50
+        else:
+            certification_match_percent = 100
+
+    # 7. Hiring Score (Weighted)
+    # Skill Match 50%, Experience Match 20%, Education Match 10%, Project Relevance 10%, Certifications 10%
+    hiring_score = round(
+        skill_match_percent * 0.50 +
+        experience_match_percent * 0.20 +
+        education_match_percent * 0.10 +
+        project_relevance_percent * 0.10 +
+        certification_match_percent * 0.10
+    )
+    hiring_score = min(100, max(0, hiring_score))
+    
+    # 8. Recommendation Status
+    if hiring_score >= 90:
+        recommendation = "Excellent Match"
+    elif hiring_score >= 80:
+        recommendation = "Highly Recommended"
+    elif hiring_score >= 65:
+        recommendation = "Recommended"
+    elif hiring_score >= 50:
+        recommendation = "Consider"
+    elif hiring_score >= 30:
+        recommendation = "Weak Match"
+    else:
+        recommendation = "Not Recommended"
         
-    # Recommendations
+    # Recommendations text (for the UI dropdown)
     recommendations = []
     if missing_skills:
         recommendations.append(
@@ -177,18 +201,31 @@ def match_candidate_to_job(candidate: dict[str, Any], job: dict[str, Any]) -> di
         recommendations.append("Consider obtaining industry certifications matching required tech stacks.")
     if exp_multiplier < 0.7:
         recommendations.append("Experience duration appears low compared to job requirement. Highlight transferable projects.")
+
+    score_breakdown = {
+        "skill_match": skill_match_percent,
+        "experience_match": experience_match_percent,
+        "education_match": education_match_percent,
+        "project_relevance": project_relevance_percent,
+        "certification_match": certification_match_percent
+    }
         
     return {
-        "ats_score": ats_score,
-        "verdict": verdict,
+        "job_id": job_id,
+        "hiring_score": hiring_score,
+        "recommendation": recommendation,
+        "score_breakdown": score_breakdown,
+        "skill_match": skill_match_percent,
+        "experience_match": experience_match_percent,
+        "education_match": education_match_percent,
+        "project_relevance": project_relevance_percent,
+        "certification_match": certification_match_percent,
         "candidate_skills": candidate_skills,
         "required_skills": required_skills,
         "matched_skills": matched_skills,
         "missing_skills": missing_skills,
-        "skill_match_percent": skill_match_percent,
-        "keyword_match_percent": keyword_match_percent,
-        "keyword_matches": keyword_matches,
-        "profile_completeness": profile_completeness,
+        "extra_skills": extra_skills,
         "experience_feedback": exp_feedback,
-        "recommendations": recommendations
+        "recommendations": recommendations,
+        "profile_completeness": calculate_profile_completeness(candidate)
     }
