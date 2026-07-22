@@ -152,25 +152,76 @@ def save_candidate(profile: dict[str, Any]) -> tuple[bool, str, str | None, str 
 
 def save_evaluation(job_id: str, candidate_id: str, hiring_score: int, recommendation: str, score_breakdown: dict) -> tuple[bool, str]:
     """
-    Store candidate evaluation results in the evaluations collection.
+    Store candidate evaluation results in the evaluations collection using upsert.
     """
     try:
         with get_mongo_client() as client:
             db = client[MONGO_CONFIG["dbname"]]
             col = db["evaluations"]
             
-            evaluation_doc = {
-                "job_id": job_id,
-                "candidate_id": candidate_id,
-                "hiring_score": hiring_score,
-                "recommendation": recommendation,
-                "score_breakdown": score_breakdown,
-                "evaluation_time": datetime.datetime.utcnow(),
+            filter_query = {
+                "job_id": str(job_id),
+                "candidate_id": str(candidate_id),
             }
-            col.insert_one(evaluation_doc)
+            update_doc = {
+                "$set": {
+                    "job_id": str(job_id),
+                    "candidate_id": str(candidate_id),
+                    "hiring_score": int(hiring_score),
+                    "recommendation": str(recommendation),
+                    "score_breakdown": score_breakdown or {},
+                    "evaluation_time": datetime.datetime.utcnow(),
+                }
+            }
+            col.update_one(filter_query, update_doc, upsert=True)
             return True, "Evaluation saved successfully"
     except Exception as exc:
         return False, f"Failed to save evaluation: {exc}"
+
+
+def auto_evaluate_all_candidates(force: bool = False) -> int:
+    """
+    Auto-evaluate candidates against available job descriptions if evaluations collection is empty (or if force=True).
+    Returns count of evaluations created/updated.
+    """
+    try:
+        with get_mongo_client() as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            eval_col = db["evaluations"]
+            if not force and eval_col.count_documents({}) > 0:
+                return 0
+
+            cand_col = db[MONGO_CONFIG["collection"]]
+            candidates = list(cand_col.find({}))
+            if not candidates:
+                return 0
+
+            import db_jobs
+            jobs = db_jobs.get_all_jobs()
+            if not jobs:
+                return 0
+
+            from jd_matcher import calculate_candidate_score
+            count = 0
+            for candidate in candidates:
+                cand_id = str(candidate["_id"])
+                for job in jobs:
+                    job_id = job.get("job_id", "")
+                    if not job_id:
+                        continue
+                    res = calculate_candidate_score(candidate, job)
+                    save_evaluation(
+                        job_id=job_id,
+                        candidate_id=cand_id,
+                        hiring_score=res.get("hiring_score", 0),
+                        recommendation=res.get("recommendation", "Not Recommended"),
+                        score_breakdown=res.get("score_breakdown", {}),
+                    )
+                    count += 1
+            return count
+    except Exception:
+        return 0
+
 
 def get_all_evaluations(limit: int = 100) -> list[dict]:
     """
@@ -369,6 +420,8 @@ def get_candidate_by_id(candidate_id: str, include_raw_text: bool = True) -> dic
                     doc = None
             if not doc:
                 doc = col.find_one({"_id": candidate_id})
+            if not doc and isinstance(candidate_id, str) and candidate_id.strip():
+                doc = col.find_one({"email": candidate_id.strip()})
             if not doc:
                 return None
             result = {

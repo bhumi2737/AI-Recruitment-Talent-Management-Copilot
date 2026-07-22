@@ -57,19 +57,32 @@ def compare_candidates_with_jd(jd_id: str) -> list[dict[str, Any]]:
 
     candidates = fetch_all_candidates()
     
+    from database import save_evaluation
+
     results = []
     for cand in candidates:
         ats_result = calculate_candidate_score(cand, jd)
+        cand_id = str(cand.get("_id", ""))
+        
+        save_evaluation(
+            job_id=str(jd_id),
+            candidate_id=cand_id,
+            hiring_score=ats_result.get("hiring_score", 0),
+            recommendation=ats_result.get("recommendation", "Not Recommended"),
+            score_breakdown=ats_result.get("score_breakdown", {})
+        )
         
         results.append({
-            "candidate_id": str(cand.get("_id", "")),
+            "candidate_id": cand_id,
             "candidate_name": cand.get("full_name", "Unknown Candidate"),
             "email": cand.get("email", ""),
             "matched_skills": ats_result.get("matched_skills", []),
             "missing_skills": ats_result.get("missing_skills", []),
             "additional_skills": ats_result.get("extra_skills", []),
             "match_percentage": ats_result.get("hiring_score", 0),
-            "recommendation": ats_result.get("recommendation", "Not Recommended")
+            "recommendation": ats_result.get("recommendation", "Not Recommended"),
+            "profile": cand,
+            "ats_result": ats_result
         })
         
     # Sort in descending order of match percentage (hiring score)

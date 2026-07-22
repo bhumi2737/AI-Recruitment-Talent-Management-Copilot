@@ -88,7 +88,7 @@ st.set_page_config(
 
 # ── Theme Configuration & Custom CSS ──────────────────────────────────────────
 if "theme" not in st.session_state:
-    st.session_state.theme = "Dark" # Default to Dark Theme as requested
+    st.session_state.theme = "Light"
 
 def inject_custom_css():
     theme = st.session_state.theme
@@ -346,8 +346,59 @@ def inject_custom_css():
             font-weight: 600 !important;
         }}
 
-        /* Hide Streamlit Junk */
-        header {{ visibility: hidden !important; }}
+        /* Ensure Sidebar Toggle / Open Button is Always Visible & Prominent in Both Themes */
+        [data-testid="stHeader"] {{
+            background-color: transparent !important;
+            z-index: 99999 !important;
+            height: 3.5rem !important;
+        }}
+
+        [data-testid="collapsedControl"] {{
+            visibility: visible !important;
+            display: flex !important;
+            top: 0.75rem !important;
+            left: 0.75rem !important;
+            z-index: 100000 !important;
+        }}
+
+        [data-testid="collapsedControl"] button,
+        [data-testid="stSidebarCollapseButton"] button,
+        button[data-testid="baseButton-headerNoPadding"] {{
+            background-color: var(--card) !important;
+            color: var(--primary) !important;
+            border: 2px solid var(--primary) !important;
+            border-radius: 8px !important;
+            padding: 0.4rem 0.6rem !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+            transition: all 0.25s ease-in-out !important;
+        }}
+
+        [data-testid="collapsedControl"] button:hover,
+        [data-testid="stSidebarCollapseButton"] button:hover,
+        button[data-testid="baseButton-headerNoPadding"]:hover {{
+            background-color: var(--primary) !important;
+            color: #ffffff !important;
+            transform: scale(1.08) !important;
+        }}
+
+        [data-testid="collapsedControl"] button svg,
+        [data-testid="stSidebarCollapseButton"] button svg,
+        button[data-testid="baseButton-headerNoPadding"] svg {{
+            fill: var(--primary) !important;
+            color: var(--primary) !important;
+            stroke: var(--primary) !important;
+            width: 1.4rem !important;
+            height: 1.4rem !important;
+        }}
+
+        [data-testid="collapsedControl"] button:hover svg,
+        [data-testid="stSidebarCollapseButton"] button:hover svg,
+        button[data-testid="baseButton-headerNoPadding"]:hover svg {{
+            fill: #ffffff !important;
+            color: #ffffff !important;
+            stroke: #ffffff !important;
+        }}
+
         footer {{ visibility: hidden !important; }}
         #MainMenu {{ visibility: hidden !important; }}
         
@@ -805,6 +856,34 @@ def delete_job(job_id: str) -> tuple[bool, str]:
             
     return False, "Both API and Database are offline. Cannot delete job."
 
+
+def update_job(job_id: str, job_data: dict[str, Any]) -> tuple[bool, str]:
+    api_ok = load_api_status()
+    if api_ok:
+        try:
+            response = requests.put(f"http://127.0.0.1:8000/api/jobs/{job_id}", json=job_data, timeout=2.0)
+            if response.status_code == 200:
+                return True, "Job description updated successfully via API."
+            else:
+                detail = response.json().get("detail", "Unknown error")
+                return False, f"API Error: {detail}"
+        except Exception as exc:
+            pass
+            
+    db_ok = load_db_status()
+    if db_ok:
+        try:
+            import db_jobs
+            success = db_jobs.update_job(job_id, job_data)
+            if success:
+                return True, "Job description updated successfully."
+            else:
+                return False, "Job ID not found in Database."
+        except Exception as exc:
+            return False, f"Database Error: {exc}"
+            
+    return False, "Both API and Database are offline. Cannot update job."
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("# 📋 RC Recruitment")
@@ -842,7 +921,7 @@ with st.sidebar:
     st.markdown("---")
     
     # Theme Toggle
-    theme_choice = st.radio("Theme", ["Dark", "Light"], index=0 if st.session_state.theme == "Dark" else 1, horizontal=True)
+    theme_choice = st.radio("Theme", ["Light", "Dark"], index=0 if st.session_state.theme == "Light" else 1, horizontal=True)
     if theme_choice != st.session_state.theme:
         st.session_state.theme = theme_choice
         st.rerun()
@@ -885,6 +964,9 @@ if active_page == "Dashboard":
     
     import database as db_stats
     evals = db_stats.get_all_evaluations(500)
+    if not evals and total_candidates > 0:
+        db_stats.auto_evaluate_all_candidates()
+        evals = db_stats.get_all_evaluations(500)
     
     try:
         import db_jobs
@@ -924,23 +1006,85 @@ if active_page == "Dashboard":
     c1, c2 = st.columns([2, 1])
     with c1:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown('<p class="card-title">📈 Hiring Score Trend</p>', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">📊 Skills Demand vs Talent Supply</p>', unsafe_allow_html=True)
         
-        if evals:
-            df_trend = pd.DataFrame(evals)
-            df_trend["Date"] = pd.to_datetime(df_trend["evaluation_time"]).dt.date
-            df_trend = df_trend.groupby("Date").agg({"hiring_score": "mean"}).reset_index()
-            fig1 = px.area(df_trend, x="Date", y="hiring_score", template=plotly_template, markers=True)
-        else:
-            dates = pd.date_range(end=pd.Timestamp.now(), periods=14)
-            scores = np.zeros(14)
-            df_trend = pd.DataFrame({"Date": dates, "Score": scores})
-            fig1 = px.area(df_trend, x="Date", y="Score", template=plotly_template, markers=True)
-            
+        # Aggregate Required Skills from Jobs & Candidates
+        job_skills_counter = Counter()
+        try:
+            import db_jobs
+            all_jds = db_jobs.get_all_jobs()
+            for j in all_jds:
+                reqs = j.get("required_skills") or []
+                if isinstance(reqs, str):
+                    reqs = [s.strip() for s in reqs.split(",") if s.strip()]
+                for s in reqs:
+                    if isinstance(s, str) and s.strip():
+                        job_skills_counter[s.strip().title()] += 1
+        except Exception:
+            pass
+
+        cand_skills_counter = Counter()
+        all_cands = load_candidates("")
+        for c in all_cands:
+            c_skills = c.get("skills") or []
+            if isinstance(c_skills, str):
+                c_skills = [s.strip() for s in c_skills.split(",") if s.strip()]
+            for s in c_skills:
+                if isinstance(s, str) and s.strip():
+                    cand_skills_counter[s.strip().title()] += 1
+
+        top_demand = [item[0] for item in job_skills_counter.most_common(5)]
+        top_supply = [item[0] for item in cand_skills_counter.most_common(5)]
+        combined_skills = []
+        for sk in top_demand + top_supply:
+            if sk not in combined_skills:
+                combined_skills.append(sk)
+        combined_skills = combined_skills[:6]
+
+        if not combined_skills:
+            combined_skills = ["Python", "React", "Docker", "SQL", "Machine Learning", "FastAPI"]
+
+        chart_data = []
+        for sk in combined_skills:
+            chart_data.append({
+                "Skill": str(sk),
+                "Count": int(job_skills_counter.get(sk, 0)),
+                "Category": "Job Demand (Required)"
+            })
+            chart_data.append({
+                "Skill": str(sk),
+                "Count": int(cand_skills_counter.get(sk, 0)),
+                "Category": "Talent Supply (Candidates)"
+            })
+
+        df_chart = pd.DataFrame(chart_data)
+
         primary_hex = "#34D399" if theme == "Dark" else "#047857"
-        teal_hex = "rgba(20, 184, 166, 0.2)"
-        fig1.update_traces(line_color=primary_hex, fillcolor=teal_hex)
-        fig1.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, margin=dict(l=0, r=0, t=10, b=0), height=250)
+        sec_hex = "#3B82F6" if theme == "Dark" else "#2563EB"
+
+        fig1 = px.bar(
+            df_chart,
+            x="Count",
+            y="Skill",
+            color="Category",
+            barmode="group",
+            orientation="h",
+            template=plotly_template,
+            color_discrete_map={
+                "Job Demand (Required)": primary_hex,
+                "Talent Supply (Candidates)": sec_hex
+            }
+        )
+        fig1.update_layout(
+            paper_bgcolor=bg_color,
+            plot_bgcolor=bg_color,
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=250,
+            showlegend=True,
+            legend=dict(title=None, orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            yaxis=dict(type="category", title=None),
+            xaxis=dict(title="Count", dtick=1)
+        )
         st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False})
         st.markdown("</div>", unsafe_allow_html=True)
         
@@ -984,11 +1128,21 @@ if active_page == "Dashboard":
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.markdown('<p class="card-title">🏆 Top Ranked Candidates</p>', unsafe_allow_html=True)
         if evals:
-            top_evals = sorted(evals, key=lambda x: x.get("hiring_score", 0), reverse=True)[:5]
+            seen_cand_ids = set()
+            top_evals = []
+            sorted_evals = sorted(evals, key=lambda x: x.get("hiring_score", 0), reverse=True)
+            for e in sorted_evals:
+                cid = e.get("candidate_id", "")
+                if cid and cid not in seen_cand_ids:
+                    seen_cand_ids.add(cid)
+                    top_evals.append(e)
+                if len(top_evals) >= 5:
+                    break
+
             for idx, e in enumerate(top_evals):
                 cand = db_stats.get_candidate_by_id(e.get("candidate_id", ""))
-                name = cand.get("full_name", "Unknown") if cand else "Unknown"
-                initial = name[0].upper() if name else "U"
+                name = cand.get("full_name", "Unknown Candidate") if cand else "Unknown Candidate"
+                initial = name[0].upper() if name and name[0].isalpha() else "U"
                 score = e.get("hiring_score", 0)
                 st.markdown(f'''
                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border);">
@@ -1056,6 +1210,15 @@ elif active_page == "Candidate Details":
             selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), jds[0])
             
             ats_result = calculate_candidate_score(candidate, selected_job)
+            cand_id = str(candidate.get("id") or candidate.get("_id") or candidate.get("email"))
+            if db_ok and cand_id and selected_job:
+                db.save_evaluation(
+                    selected_job.get("job_id"),
+                    cand_id,
+                    ats_result.get("hiring_score", 0),
+                    ats_result.get("recommendation", "Not Recommended"),
+                    ats_result.get("score_breakdown", {})
+                )
             actual_ats = ats_result.get("hiring_score", 0)
             breakdown = ats_result.get("score_breakdown", {})
             
@@ -1114,7 +1277,7 @@ elif active_page == "Candidate Details":
                 ))
                 fig_radar.update_layout(
                     polar=dict(
-                        radialaxis=dict(visible=True, range=[0, 100]),
+                        radialaxis=dict(visible=True, range=[0, 100], autorange=False),
                         bgcolor=bg_color
                     ),
                     showlegend=False,
@@ -1328,7 +1491,7 @@ elif active_page == "Job Descriptions":
                 match_btn_key = f"match_j_{jid}_{idx}"
                 first_skill = skills[0] if skills else ""
                 
-                b1, b2 = st.columns(2)
+                b1, b2, b3 = st.columns(3)
                 with b1:
                     if st.button("🔍 Match", key=match_btn_key, use_container_width=True, type="primary"):
                         st.session_state.active_page = "Candidate Matching"
@@ -1336,6 +1499,15 @@ elif active_page == "Job Descriptions":
                         st.session_state.search_filter = first_skill
                         st.rerun()
                 with b2:
+                    edit_btn_key = f"edit_j_{jid}_{idx}"
+                    is_editing = st.session_state.get("editing_job_id") == jid
+                    if st.button("❌ Cancel" if is_editing else "✏️ Edit", key=edit_btn_key, use_container_width=True, type="secondary"):
+                        if is_editing:
+                            st.session_state.editing_job_id = None
+                        else:
+                            st.session_state.editing_job_id = jid
+                        st.rerun()
+                with b3:
                     delete_btn_key = f"delete_j_{jid}_{idx}"
                     if st.button("🗑️ Delete", key=delete_btn_key, use_container_width=True, type="secondary"):
                         success, msg = delete_job(jid)
@@ -1346,6 +1518,50 @@ elif active_page == "Job Descriptions":
                             st.rerun()
                         else:
                             st.error(msg)
+
+            if st.session_state.get("editing_job_id") == jid:
+                st.markdown("<hr style='margin: 1rem 0;'>", unsafe_allow_html=True)
+                st.markdown("#### ✏️ Update Job Position")
+                with st.form(f"edit_job_form_{jid}_{idx}"):
+                    edit_title = st.text_input("Job Title*", value=title)
+                    edit_company = st.text_input("Company Name*", value=company)
+                    skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
+                    edit_skills = st.text_input("Required Skills (comma-separated)*", value=skills_str)
+                    
+                    col_e1, col_e2, col_e3 = st.columns(3)
+                    with col_e1:
+                        edit_exp = st.text_input("Experience Required*", value=exp)
+                    with col_e2:
+                        edit_loc = st.text_input("Location*", value=loc)
+                    with col_e3:
+                        edit_sal = st.text_input("Salary / Compensation", value=sal)
+                        
+                    edit_desc = st.text_area("Job Description*", value=desc, height=150)
+                    
+                    save_edit_submitted = st.form_submit_button("💾 Save Changes", use_container_width=True)
+                    if save_edit_submitted:
+                        if not (edit_title.strip() and edit_company.strip() and edit_skills.strip() and edit_exp.strip() and edit_desc.strip()):
+                            st.error("Please fill in all required fields (marked with *).")
+                        else:
+                            updated_skills_list = [s.strip() for s in edit_skills.split(",") if s.strip()]
+                            updated_job_data = {
+                                "job_title": edit_title.strip(),
+                                "company_name": edit_company.strip(),
+                                "required_skills": updated_skills_list,
+                                "experience_required": edit_exp.strip(),
+                                "location": edit_loc.strip() or "Remote",
+                                "salary": edit_sal.strip() or "Not Specified",
+                                "job_description": edit_desc.strip(),
+                            }
+                            success, msg = update_job(jid, updated_job_data)
+                            if success:
+                                st.success(msg)
+                                st.session_state.editing_job_id = None
+                                if hasattr(st, "cache_data"):
+                                    st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(msg)
 
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1454,6 +1670,15 @@ elif active_page == "Candidate Ranking":
         ats_result = calculate_candidate_score(c, selected_job)
         score = ats_result.get("hiring_score", 0)
         status = ats_result.get("recommendation", "Not Recommended")
+        cand_id = str(c.get("id") or c.get("_id") or c.get("email"))
+        if db_ok and cand_id and selected_job:
+            db.save_evaluation(
+                selected_job.get("job_id"),
+                cand_id,
+                score,
+                status,
+                ats_result.get("score_breakdown", {})
+            )
         
         if status in ["Excellent Match", "Highly Recommended"]:
             badge = f'<span class="badge-green">{status}</span>'
@@ -1519,7 +1744,20 @@ elif active_page == "Executive Reports":
         """)
         
     st.markdown("---")
-    st.button("?? Download PDF Report", type="primary")
+    report_text = f"""Executive Dashboard Report
+---------------------------
+Key Metrics:
+- Total Active Jobs: {len(jds)}
+- Total Talent Pool: {len(candidates)} candidates.
+- Evaluations Processed: {total_evals}
+- Average Hiring Score: {avg_hiring_score} / 100
+
+Pipeline Status:
+- Top Matches: Highly Recommended candidates are automatically flagged in rankings.
+- Skill Gaps: Check the Skill Gap Analysis tab to identify missing competencies.
+- Diversity: Continue broad sourcing to expand talent pool diversity.
+"""
+    st.download_button("📥 Download Dashboard Report", data=report_text, file_name="Executive_Dashboard_Report.txt", mime="text/plain", type="primary")
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
@@ -1543,9 +1781,15 @@ elif active_page == "Candidate Matching":
         if st.button("🔍 Run Matching Engine", type="primary"):
             with st.spinner("Analyzing candidate pool against requirements..."):
                 results = compare_candidates_with_jd(selected_jd_id)
+                st.session_state["matching_results"] = results
+                st.session_state["matching_jd_id"] = selected_jd_id
                 
+        if "matching_results" in st.session_state and st.session_state.get("matching_jd_id") == selected_jd_id:
+            results = st.session_state["matching_results"]
             if results:
                 st.success(f"Successfully evaluated {len(results)} candidates.")
+                
+                selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), None)
                 
                 for res in results:
                     pct = res["match_percentage"]
@@ -1600,6 +1844,25 @@ elif active_page == "Candidate Matching":
                     with b3:
                         st.markdown("#### ➕ Additional Skills")
                         st.markdown(a_html if a_html else '<span class="badge-amber">None</span>', unsafe_allow_html=True)
+                        
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    try:
+                        import pdf_generator
+                        pdf_bytes = pdf_generator.generate_skill_gap_pdf(res.get("profile", {}), res.get("ats_result", {}), selected_job)
+                    except Exception as e:
+                        pdf_bytes = b"PDF Generation failed: " + str(e).encode()
+                    
+                    import re
+                    s_name = re.sub(r'[\\/*?:"<>|]', "", name).replace(" ", "_")
+                    cand_id = res.get("candidate_id", s_name)
+                    st.download_button(
+                        label="📥 Download Skill Gap Report (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"{s_name}_Skill_Gap_Report.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key=f"dl_sg_report_{cand_id}"
+                    )
                         
                     st.markdown('</div>', unsafe_allow_html=True)
             else:
@@ -1661,15 +1924,21 @@ elif active_page == "Resume Upload":
             st.session_state.parse_complete = False
             st.session_state.progress_value = 0.0
             st.session_state.already_exists = False
+            if "current_ats_result" in st.session_state:
+                del st.session_state["current_ats_result"]
     else:
         if st.session_state.get("current_file") is not None:
             st.session_state.current_file = None
             st.session_state.parse_complete = False
             st.session_state.progress_value = 0.0
             st.session_state.already_exists = False
+            if "current_ats_result" in st.session_state:
+                del st.session_state["current_ats_result"]
 
     if uploaded_file is not None:
         if st.button("🚀 Parse Resume", type="primary", use_container_width=True):
+            if "current_ats_result" in st.session_state:
+                del st.session_state["current_ats_result"]
             with st.spinner("Parsing resume..."):
                 try:
                     file_bytes = uploaded_file.read()
@@ -1701,6 +1970,23 @@ elif active_page == "Resume Upload":
                     st.session_state.save_state = save_state
                     st.session_state.parse_msg = parse_msg
                     st.session_state.scanned_pdf_warning = is_scanned_pdf
+
+                    if saved_to_db and db_ok:
+                        try:
+                            import db_jobs
+                            jds = db_jobs.get_all_jobs()
+                            cand_ref = profile.get("email") or profile.get("full_name")
+                            for j in jds:
+                                ats_res = calculate_candidate_score(profile, j)
+                                db.save_evaluation(
+                                    j.get("job_id"),
+                                    cand_ref,
+                                    ats_res.get("hiring_score", 0),
+                                    ats_res.get("recommendation", "Not Recommended"),
+                                    ats_res.get("score_breakdown", {})
+                                )
+                        except Exception:
+                            pass
 
                     status_text = "Saved" if saved_to_db else "Parsed (not saved)"
                     if save_state == "updated":
@@ -1862,6 +2148,8 @@ elif active_page == "Resume Upload":
                     mock_job = {"job_id": "CUSTOM-TEXT", "job_description": job_description}
                     ats_result = calculate_candidate_score(profile, mock_job)
 
+                st.session_state["current_ats_result"] = ats_result
+
                 # Save evaluation to database
                 if db_ok and profile.get("email"):
                     db.save_evaluation(
@@ -1872,6 +2160,11 @@ elif active_page == "Resume Upload":
                         ats_result["score_breakdown"]
                     )
 
+        if "current_ats_result" in st.session_state:
+            ats_result = st.session_state["current_ats_result"]
+            import pandas as pd
+            import plotly.express as px
+            if True:
                 # Candidate Card UI
                 badge_color_map = {
                     "Highly Recommended": "var(--green)",
@@ -1994,23 +2287,28 @@ elif active_page == "Resume Upload":
                     else:
                         st.write("Candidate profile is well aligned with the job description.")
 
-                # Download Skill Gap Report
-                report_content = f"Skill Gap Report for {profile.get('full_name', 'Unknown')}\n"
-                report_content += f"Job ID: {ats_result['job_id']}\n"
-                report_content += f"Hiring Score: {ats_result['hiring_score']}\n"
-                report_content += f"Recommendation: {ats_result['recommendation']}\n\n"
-                report_content += "Breakdown:\n"
-                for k, v in ats_result["score_breakdown"].items():
-                    report_content += f"- {k}: {v}%\n"
-                report_content += "\nMissing Skills:\n"
-                report_content += ", ".join(ats_result["missing_skills"]) if ats_result["missing_skills"] else "None"
+                # Download Skill Gap Report (PDF)
+                try:
+                    import pdf_generator
+                    # selected_job might be None if mock_job was used, wait, mock_job was used if selected_job was None
+                    # let's pass selected_job if it exists, otherwise pass a dict with the description
+                    pdf_bytes = pdf_generator.generate_skill_gap_pdf(profile, ats_result, selected_job if selected_job else {"job_title": "Custom Job", "company_name": "Unknown"})
+                except Exception as e:
+                    pdf_bytes = b"PDF Generation failed: " + str(e).encode()
+                
+                safe_name = profile.get('full_name')
+                if not safe_name:
+                    safe_name = 'candidate'
+                import re
+                safe_name = re.sub(r'[\\/*?:"<>|]', "", safe_name).replace(" ", "_")
                 
                 st.download_button(
-                    label="📥 Download Skill Gap Report",
-                    data=report_content,
-                    file_name=f"Skill_Gap_Report_{profile.get('full_name', 'candidate').replace(' ', '_')}.txt",
-                    mime="text/plain",
-                    use_container_width=True
+                    label="📥 Download Skill Gap Report (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"{safe_name}_Skill_Gap_Report.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key="skill_gap_report_download"
                 )
 
         st.markdown("</div>", unsafe_allow_html=True)
