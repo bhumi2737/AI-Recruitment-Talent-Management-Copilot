@@ -11,6 +11,8 @@ import hashlib
 import re
 from typing import Any
 
+import offline_storage
+
 try:
     from dotenv import load_dotenv
 except ImportError:
@@ -51,22 +53,53 @@ MONGO_CONFIG = {
 }
 
 
-def get_mongo_client(timeout_ms: int = 3000):
-    """Create and return a new MongoClient instance."""
+class UnclosableClientWrapper:
+    def __init__(self, client):
+        self._client = client
+
+    def __enter__(self):
+        return self._client
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Prevent context managers (with get_mongo_client()) from closing the shared MongoClient connection
+        pass
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+    def __getitem__(self, name):
+        return self._client[name]
+
+
+_cached_mongo_client = None
+
+def get_mongo_client(timeout_ms: int = 2000):
+    """Create and return a cached MongoClient instance wrapped to prevent premature socket closure."""
+    global _cached_mongo_client
+    _pymongo = _get_pymongo()
+
+    if _cached_mongo_client is not None:
+        try:
+            if _cached_mongo_client._topology and not _cached_mongo_client._topology._closed:
+                return UnclosableClientWrapper(_cached_mongo_client)
+        except Exception:
+            pass
+        _cached_mongo_client = None
+
     import certifi
     try:
         ca = certifi.where()
     except Exception:
         ca = None
 
-    _pymongo = _get_pymongo()
     kwargs = {"serverSelectionTimeoutMS": timeout_ms}
     if ca:
         kwargs["tlsCAFile"] = ca
     else:
         kwargs["tlsAllowInvalidCertificates"] = True
 
-    return _pymongo.MongoClient(MONGO_CONFIG["uri"], **kwargs)
+    _cached_mongo_client = _pymongo.MongoClient(MONGO_CONFIG["uri"], **kwargs)
+    return UnclosableClientWrapper(_cached_mongo_client)
 
 
 def test_connection() -> tuple[bool, str]:
@@ -139,6 +172,13 @@ def save_candidate(profile: dict[str, Any]) -> tuple[bool, str, str | None, str 
                 },
                 "$setOnInsert": {
                     "created_at": datetime.datetime.utcnow(),
+                    "application_status": "Applied",
+                    "recruitment_stage": "Applied",
+                    "interview_date": "",
+                    "interview_time": "",
+                    "interviewer_name": "",
+                    "recruiter_notes": "",
+                    "recruiter_feedback": "",
                 },
             }
 
@@ -407,12 +447,12 @@ def get_dashboard_stats() -> dict:
 
 
 def get_candidate_by_id(candidate_id: str, include_raw_text: bool = True) -> dict | None:
+    doc = None
     try:
         with get_mongo_client() as client:
             db = client[MONGO_CONFIG["dbname"]]
             col = db[MONGO_CONFIG["collection"]]
             ObjectId = _safe_import_objectid()
-            doc = None
             if ObjectId is not None:
                 try:
                     doc = col.find_one({"_id": ObjectId(candidate_id)})
@@ -422,32 +462,63 @@ def get_candidate_by_id(candidate_id: str, include_raw_text: bool = True) -> dic
                 doc = col.find_one({"_id": candidate_id})
             if not doc and isinstance(candidate_id, str) and candidate_id.strip():
                 doc = col.find_one({"email": candidate_id.strip()})
-            if not doc:
-                return None
-            result = {
-                "id": str(doc["_id"]),
-                "full_name": doc.get("full_name", ""),
-                "email": doc.get("email", ""),
-                "phone": doc.get("phone", ""),
-                "skills": ", ".join(_normalize_skills_text(doc.get("skills", ""))),
-                "education": doc.get("education", ""),
-                "experience": doc.get("experience", ""),
-                "certifications": doc.get("certifications", ""),
-                "projects": doc.get("projects", ""),
-                "created_at": doc.get("created_at"),
-                "updated_at": doc.get("updated_at"),
-            }
-            if include_raw_text:
-                result["raw_text"] = doc.get("raw_text", "")
-            return result
     except Exception:
+        doc = None
+
+    if not doc:
+        try:
+            off_dict = offline_storage.load_offline_data("candidates")
+            cid_str = str(candidate_id or "").strip().lower()
+            for k, v in off_dict.items():
+                v_id = str(v.get("id") or v.get("_id") or v.get("candidate_id") or "").strip().lower()
+                v_email = str(v.get("email") or "").strip().lower()
+                v_name = str(v.get("full_name") or "").strip().lower()
+                if k.lower() == cid_str or v_id == cid_str or v_email == cid_str or (cid_str and cid_str == v_name):
+                    doc = v
+                    break
+        except Exception:
+            pass
+
+    if not doc:
         return None
+
+    skills_val = doc.get("skills", "")
+    if isinstance(skills_val, (list, tuple, set)):
+        skills_str = ", ".join(_normalize_skills_text(skills_val))
+    else:
+        skills_str = str(skills_val or "")
+
+    result = {
+        "id": str(doc.get("id") or doc.get("_id") or doc.get("email") or candidate_id),
+        "candidate_id": str(doc.get("candidate_id") or doc.get("id") or doc.get("_id") or doc.get("email") or candidate_id),
+        "full_name": doc.get("full_name", ""),
+        "email": doc.get("email", ""),
+        "phone": doc.get("phone", ""),
+        "skills": skills_str,
+        "education": doc.get("education", ""),
+        "experience": doc.get("experience", ""),
+        "certifications": doc.get("certifications", ""),
+        "projects": doc.get("projects", ""),
+        "application_status": doc.get("application_status", doc.get("recruitment_stage", "Applied")),
+        "recruitment_stage": doc.get("recruitment_stage", "Applied"),
+        "interview_date": doc.get("interview_date", ""),
+        "interview_time": doc.get("interview_time", ""),
+        "interviewer_name": doc.get("interviewer_name", ""),
+        "recruiter_notes": doc.get("recruiter_notes", ""),
+        "recruiter_feedback": doc.get("recruiter_feedback", ""),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+    }
+    if include_raw_text:
+        result["raw_text"] = doc.get("raw_text", "")
+    return result
 
 
 def get_all_candidates(search_query: str = None, include_raw_text: bool = False) -> list[dict]:
     """
-    Fetch all candidates from MongoDB, optionally filtered by a search query.
+    Fetch all candidates from MongoDB, optionally filtered by a search query, falling back to offline storage.
     """
+    candidates = []
     try:
         with get_mongo_client() as client:
             db = client[MONGO_CONFIG["dbname"]]
@@ -470,76 +541,268 @@ def get_all_candidates(search_query: str = None, include_raw_text: bool = False)
             }
             if include_raw_text:
                 projection = None
-            docs = col.find(query, projection).sort("updated_at", pymongo.DESCENDING)
+            _pymongo = _get_pymongo()
+            docs = col.find(query, projection).sort("updated_at", _pymongo.DESCENDING)
             
-            candidates = []
             for doc in docs:
+                skills_val = doc.get("skills", "")
+                skills_str = ", ".join(_normalize_skills_text(skills_val)) if isinstance(skills_val, (list, tuple, set)) else str(skills_val or "")
+                c_id = str(doc.get("_id") or doc.get("id") or doc.get("email") or "")
                 candidates.append({
-                    "id": str(doc["_id"]),
+                    "id": c_id,
+                    "candidate_id": str(doc.get("candidate_id") or c_id),
                     "full_name": doc.get("full_name", ""),
                     "email": doc.get("email", ""),
                     "phone": doc.get("phone", ""),
-                    "skills": ", ".join(_normalize_skills_text(doc.get("skills", ""))),
+                    "skills": skills_str,
                     "education": doc.get("education", ""),
                     "experience": doc.get("experience", ""),
                     "certifications": doc.get("certifications", ""),
                     "projects": doc.get("projects", ""),
+                    "application_status": doc.get("application_status", doc.get("recruitment_stage", "Applied")),
+                    "recruitment_stage": doc.get("recruitment_stage", "Applied"),
+                    "interview_date": doc.get("interview_date", ""),
+                    "interview_time": doc.get("interview_time", ""),
+                    "interviewer_name": doc.get("interviewer_name", ""),
+                    "recruiter_notes": doc.get("recruiter_notes", ""),
+                    "recruiter_feedback": doc.get("recruiter_feedback", ""),
                     "created_at": doc.get("created_at"),
                     "updated_at": doc.get("updated_at"),
                 })
-            return candidates
     except Exception:
-        return []
+        candidates = []
+
+    if not candidates:
+        try:
+            off_dict = offline_storage.load_offline_data("candidates")
+            sq = (search_query or "").strip().lower()
+            for k, doc in off_dict.items():
+                fname = str(doc.get("full_name") or "")
+                femail = str(doc.get("email") or "")
+                fskills = str(doc.get("skills") or "")
+                fedu = str(doc.get("education") or "")
+                fexp = str(doc.get("experience") or "")
+                if sq:
+                    if sq not in fname.lower() and sq not in femail.lower() and sq not in fskills.lower() and sq not in fedu.lower() and sq not in fexp.lower():
+                        continue
+                skills_val = doc.get("skills", "")
+                skills_str = ", ".join(_normalize_skills_text(skills_val)) if isinstance(skills_val, (list, tuple, set)) else str(skills_val or "")
+                c_id = str(doc.get("id") or doc.get("_id") or doc.get("email") or k)
+                candidates.append({
+                    "id": c_id,
+                    "candidate_id": str(doc.get("candidate_id") or c_id),
+                    "full_name": fname,
+                    "email": femail,
+                    "phone": doc.get("phone", ""),
+                    "skills": skills_str,
+                    "education": fedu,
+                    "experience": fexp,
+                    "certifications": doc.get("certifications", ""),
+                    "projects": doc.get("projects", ""),
+                    "application_status": doc.get("application_status", doc.get("recruitment_stage", "Applied")),
+                    "recruitment_stage": doc.get("recruitment_stage", "Applied"),
+                    "interview_date": doc.get("interview_date", ""),
+                    "interview_time": doc.get("interview_time", ""),
+                    "interviewer_name": doc.get("interviewer_name", ""),
+                    "recruiter_notes": doc.get("recruiter_notes", ""),
+                    "recruiter_feedback": doc.get("recruiter_feedback", ""),
+                    "created_at": doc.get("created_at"),
+                    "updated_at": doc.get("updated_at"),
+                })
+        except Exception:
+            pass
+
+    return candidates
 
 
 def get_all_candidates_light(search_query: str = None) -> list[dict]:
     """
     Fetch lightweight candidate records without raw_text, deduplicated by email.
     """
+    return get_all_candidates(search_query=search_query, include_raw_text=False)
+
+
+# ── ATS Candidate Management Helpers ─────────────────────────────────────────
+
+ALLOWED_RECRUITMENT_STAGES = ["Applied", "Screening", "Interview", "Selected", "Selected (Hired)", "Hired", "Shortlisted", "Rejected"]
+
+
+def _get_candidate_filter(candidate_id: str) -> dict:
+    ObjectId = _safe_import_objectid()
+    if ObjectId is not None:
+        try:
+            return {"_id": ObjectId(candidate_id)}
+        except Exception:
+            pass
+    if isinstance(candidate_id, str) and candidate_id.strip():
+        if "@" in candidate_id:
+            return {"email": candidate_id.strip()}
+    return {"_id": candidate_id}
+
+
+def update_candidate_stage(candidate_id: str, recruitment_stage: str) -> tuple[bool, str]:
+    """
+    Update recruitment stage for a candidate in MongoDB and offline cache.
+    Allowed stages: Applied, Screening, Interview, Selected, Rejected.
+    """
+    if recruitment_stage not in ALLOWED_RECRUITMENT_STAGES:
+        return False, f"Invalid stage '{recruitment_stage}'. Must be one of {ALLOWED_RECRUITMENT_STAGES}."
+
+    cid = str(candidate_id or "").strip()
     try:
         with get_mongo_client() as client:
             db = client[MONGO_CONFIG["dbname"]]
             col = db[MONGO_CONFIG["collection"]]
+            filter_query = _get_candidate_filter(cid)
 
-            query = {}
-            if search_query and search_query.strip():
-                q = search_query.strip()
-                query = {
-                    "$or": [
-                        {"full_name": {"$regex": q, "$options": "i"}},
-                        {"email": {"$regex": q, "$options": "i"}},
-                        {"skills": {"$regex": q, "$options": "i"}},
-                        {"education": {"$regex": q, "$options": "i"}},
-                        {"experience": {"$regex": q, "$options": "i"}},
-                    ]
+            update_doc = {
+                "$set": {
+                    "recruitment_stage": recruitment_stage,
+                    "application_status": recruitment_stage,
+                    "updated_at": datetime.datetime.utcnow(),
                 }
+            }
+            res = col.update_one(filter_query, update_doc)
+    except Exception:
+        pass
 
-            projection = {"raw_text": 0}
-            _pymongo = _get_pymongo()
-            docs = col.find(query, projection).sort("updated_at", _pymongo.DESCENDING)
+    try:
+        import offline_storage
+        cand_doc = get_candidate_by_id(cid)
+        if cand_doc:
+            cand_doc["recruitment_stage"] = recruitment_stage
+            cand_doc["application_status"] = recruitment_stage
+            offline_storage.upsert_offline_record("candidates", cid, cand_doc)
+            return True, f"Recruitment stage updated to '{recruitment_stage}'."
+    except Exception:
+        pass
 
-            candidates = []
-            seen_entries = set()
+    return True, f"Recruitment stage updated to '{recruitment_stage}'."
+
+
+def update_candidate_interview(candidate_id: str, interview_date: str, interview_time: str, interviewer_name: str) -> tuple[bool, str]:
+    """
+    Schedule/update interview details for a candidate in MongoDB.
+    Validation: interview_date cannot be before today, interview_time cannot be empty.
+    """
+    if not interview_time or not str(interview_time).strip():
+        return False, "Interview time cannot be empty."
+
+    # Validate date
+    if interview_date:
+        try:
+            if isinstance(interview_date, str):
+                parsed_date = datetime.datetime.strptime(interview_date, "%Y-%m-%d").date()
+            else:
+                parsed_date = interview_date
+            today = datetime.date.today()
+            if parsed_date < today:
+                return False, "Interview date cannot be before today's date."
+            interview_date_str = str(parsed_date)
+        except ValueError:
+            return False, "Invalid date format. Expected YYYY-MM-DD."
+    else:
+        return False, "Interview date is required."
+
+    try:
+        with get_mongo_client() as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            col = db[MONGO_CONFIG["collection"]]
+            filter_query = _get_candidate_filter(candidate_id)
+
+            update_doc = {
+                "$set": {
+                    "interview_date": interview_date_str,
+                    "interview_time": str(interview_time).strip(),
+                    "interviewer_name": str(interviewer_name or "").strip(),
+                    "updated_at": datetime.datetime.utcnow(),
+                }
+            }
+            res = col.update_one(filter_query, update_doc)
+            if res.matched_count > 0:
+                return True, "Interview schedule saved successfully."
+            return False, "Candidate not found."
+    except Exception as exc:
+        return False, f"Failed to update interview schedule: {exc}"
+
+
+def update_candidate_notes(candidate_id: str, recruiter_notes: str) -> tuple[bool, str]:
+    """
+    Save internal recruiter notes for a candidate in MongoDB.
+    """
+    try:
+        with get_mongo_client() as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            col = db[MONGO_CONFIG["collection"]]
+            filter_query = _get_candidate_filter(candidate_id)
+
+            update_doc = {
+                "$set": {
+                    "recruiter_notes": str(recruiter_notes or "").strip(),
+                    "updated_at": datetime.datetime.utcnow(),
+                }
+            }
+            res = col.update_one(filter_query, update_doc)
+            if res.matched_count > 0:
+                return True, "Recruiter notes saved successfully."
+            return False, "Candidate not found."
+    except Exception as exc:
+        return False, f"Failed to save recruiter notes: {exc}"
+
+
+def update_candidate_feedback(candidate_id: str, recruiter_feedback: str) -> tuple[bool, str]:
+    """
+    Save recruiter feedback for a candidate in MongoDB.
+    """
+    try:
+        with get_mongo_client() as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            col = db[MONGO_CONFIG["collection"]]
+            filter_query = _get_candidate_filter(candidate_id)
+
+            update_doc = {
+                "$set": {
+                    "recruiter_feedback": str(recruiter_feedback or "").strip(),
+                    "updated_at": datetime.datetime.utcnow(),
+                }
+            }
+            res = col.update_one(filter_query, update_doc)
+            if res.matched_count > 0:
+                return True, "Recruiter feedback saved successfully."
+            return False, "Candidate not found."
+    except Exception as exc:
+        return False, f"Failed to save recruiter feedback: {exc}"
+
+
+def get_candidate_stage_counts() -> dict[str, int]:
+    """
+    Aggregates and returns the candidate count per recruitment stage from MongoDB.
+    Returns dict: {'Total': X, 'Applied': A, 'Screening': S, 'Interview': I, 'Selected': SEL, 'Rejected': R}
+    """
+    counts = {stage: 0 for stage in ALLOWED_RECRUITMENT_STAGES}
+    counts["Total"] = 0
+    try:
+        with get_mongo_client(timeout_ms=2000) as client:
+            db = client[MONGO_CONFIG["dbname"]]
+            col = db[MONGO_CONFIG["collection"]]
+            docs = list(col.find({}, {"recruitment_stage": 1, "email": 1, "phone": 1}))
+
+            seen_keys = set()
             for doc in docs:
                 email = (doc.get("email") or "").strip().lower()
-                unique_key = email if email else str(doc.get("_id", ""))
-                if unique_key in seen_entries:
+                phone = (doc.get("phone") or "").strip()
+                key = email or phone or str(doc.get("_id"))
+                if key in seen_keys:
                     continue
-                seen_entries.add(unique_key)
+                seen_keys.add(key)
 
-                candidates.append({
-                    "id": str(doc["_id"]),
-                    "full_name": doc.get("full_name", ""),
-                    "email": doc.get("email", ""),
-                    "phone": doc.get("phone", ""),
-                    "skills": ", ".join(_normalize_skills_text(doc.get("skills", ""))),
-                    "education": doc.get("education", ""),
-                    "experience": doc.get("experience", ""),
-                    "certifications": doc.get("certifications", ""),
-                    "projects": doc.get("projects", ""),
-                    "created_at": doc.get("created_at"),
-                    "updated_at": doc.get("updated_at"),
-                })
-            return candidates
+                stage = doc.get("recruitment_stage", "Applied")
+                if stage not in counts:
+                    stage = "Applied"
+                counts[stage] += 1
+                counts["Total"] += 1
+
+            return counts
     except Exception:
-        return []
+        return counts
+

@@ -11,10 +11,20 @@ from collections import Counter
 from datetime import datetime
 from typing import Any
 
-import streamlit as st
+import os
 import requests
+import streamlit as st
 
 import database as db
+import db_jobs
+import db_interviews
+import db_applications
+import ai_question_generator
+import db_question_generator
+import db_question_sets
+import ai_interview_evaluator
+import db_interview_evaluator
+import interview_pdf_report
 from parser import calculate_extraction_accuracy, parse_resume
 from scorer import calculate_ats_score
 from jd_matcher import calculate_candidate_score
@@ -519,11 +529,44 @@ DEFAULT_SESSION_VALUES = {
     "saved_to_db": False,
     "save_state": None,
     "scanned_pdf_warning": False,
+    "pipeline_stage_filter": "All",
+    "pipeline_skill_filter": "All",
+    "pipeline_interview_filter": "All",
+    "pipeline_search_query": "",
+    "portal_role": "Recruiter",
+    "current_candidate_user": None,
+    "candidate_active_page": "Dashboard",
+    "taking_interview_id": None,
+    "taking_question_index": 0,
+    "review_mode": False,
+    "viewing_submitted_intv_id": None,
+    "active_question_set": [],
+    "question_set_candidate_id": None,
+    "question_set_job_id": None,
+    "question_set_difficulty": "Mixed",
+    "preview_mode": False,
+    "preloaded_questions_for_assignment": None,
+    "preloaded_candidate_id_for_assignment": None,
+    "preloaded_job_id_for_assignment": None,
 }
 
 for key, value in DEFAULT_SESSION_VALUES.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+
+def render_stage_badge(stage: str) -> str:
+    stage_str = html.escape(str(stage or "Applied"))
+    badge_map = {
+        "Applied": ("rgba(59, 130, 246, 0.15)", "#3b82f6"),
+        "Screening": ("rgba(139, 92, 246, 0.15)", "#8b5cf6"),
+        "Interview": ("rgba(245, 158, 11, 0.15)", "#f59e0b"),
+        "Selected": ("rgba(16, 185, 129, 0.15)", "#10b981"),
+        "Rejected": ("rgba(239, 68, 68, 0.15)", "#ef4444"),
+    }
+    bg, color = badge_map.get(stage_str, ("rgba(107, 114, 128, 0.15)", "#6b7280"))
+    return f'<span style="background-color: {bg}; color: {color}; border: 1px solid {color}; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; display: inline-block;">{stage_str}</span>'
+
 
 
 # ── Utility helpers ───────────────────────────────────────────────────────────
@@ -725,17 +768,1379 @@ def normalize_top_skills(top_skills: Any) -> list[dict]:
     return result
 
 
+def render_ats_candidate_details(candidate: dict, db_ok: bool, is_candidate_view: bool = False):
+    import datetime
+
+    if not is_candidate_view and st.session_state.get("portal_role") == "Candidate":
+        is_candidate_view = True
+
+    cid = candidate_id(candidate)
+    name = safe_text(candidate.get("full_name"), "Unknown Candidate")
+    email = safe_text(candidate.get("email"), "—")
+    phone = safe_text(candidate.get("phone"), "—")
+    stage = candidate.get("recruitment_stage", "Applied")
+
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+
+    # Candidate Header
+    initial = name[0].upper() if name and name[0].isalpha() else "U"
+    stage_badge = render_stage_badge(stage)
+    st.markdown(
+        f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <div style="display: flex; align-items: center;">
+                <div style="width: 70px; height: 70px; border-radius: 50%; background-color: var(--primary); display: flex; align-items: center; justify-content: center; margin-right: 1.2rem; color: white; font-weight: 700; font-size: 2.2rem; border: 3px solid var(--border);">
+                    {initial}
+                </div>
+                <div>
+                    <h2 style="margin: 0; padding: 0; color: var(--heading);">{html.escape(name)}</h2>
+                    <p style="color: var(--muted); font-size: 1rem; margin-top: 0.2rem;">📧 {html.escape(email)} &nbsp;&nbsp;|&nbsp;&nbsp; 📱 {html.escape(phone)}</p>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 0.3rem;">CURRENT STAGE</div>
+                {stage_badge}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown("---")
+
+    # 1. Stage Management & Interview Scheduling
+    if is_candidate_view:
+        # Candidate Read-Only View of Scheduled Interview
+        c_date = candidate.get("interview_date")
+        c_time = candidate.get("interview_time")
+        c_interviewer = candidate.get("interviewer_name")
+
+        st.markdown("#### 🗓️ Scheduled Interview Details")
+        if c_date or c_time or c_interviewer:
+            st.info(
+                f"📅 **Date:** {html.escape(str(c_date or 'To be announced'))} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"⏰ **Time:** {html.escape(str(c_time or 'To be announced'))} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"👨‍💼 **Interviewer:** {html.escape(str(c_interviewer or 'Assigned Hiring Team'))}"
+            )
+        else:
+            st.caption("No upcoming interviews scheduled yet.")
+        st.markdown("---")
+    else:
+        # Recruiter Management Controls
+        col_stage_mgmt, col_interview_mgmt = st.columns(2)
+
+        with col_stage_mgmt:
+            st.markdown("#### 📌 Stage Management")
+            stage_options = ["Applied", "Screening", "Interview", "Selected", "Rejected"]
+            curr_index = stage_options.index(stage) if stage in stage_options else 0
+            new_stage = st.selectbox(
+                "Recruitment Stage",
+                options=stage_options,
+                index=curr_index,
+                key=f"stage_select_{cid}"
+            )
+            if st.button("💾 Save Stage", key=f"save_stage_btn_{cid}", type="primary"):
+                ok, msg = db.update_candidate_stage(cid, new_stage)
+                try:
+                    cand_apps = db_applications.get_applications_by_candidate(cid)
+                    for app_d in cand_apps:
+                        db_applications.set_application_final_decision(cid, app_d.get("job_id"), new_stage)
+                except Exception:
+                    pass
+                if ok:
+                    st.success(f"Recruitment stage updated to '{new_stage}'.")
+                    if hasattr(st, "cache_data"):
+                        st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+        with col_interview_mgmt:
+            st.markdown("#### 🗓️ Interview Scheduling")
+            curr_date_str = candidate.get("interview_date", "")
+            default_date = datetime.date.today()
+            if curr_date_str:
+                try:
+                    default_date = datetime.datetime.strptime(curr_date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    default_date = datetime.date.today()
+
+            interview_date_val = st.date_input(
+                "Interview Date*",
+                value=default_date,
+                key=f"interview_date_input_{cid}"
+            )
+
+            curr_time_str = candidate.get("interview_time", "")
+            interview_time_val = st.text_input(
+                "Interview Time*",
+                value=curr_time_str,
+                placeholder="e.g. 10:30 AM or 14:00",
+                key=f"interview_time_input_{cid}"
+            )
+
+            curr_interviewer = candidate.get("interviewer_name", "")
+            interviewer_name_val = st.text_input(
+                "Interviewer Name",
+                value=curr_interviewer,
+                placeholder="e.g. Technical Lead / HR Manager",
+                key=f"interviewer_name_input_{cid}"
+            )
+
+            if st.button("📅 Schedule Interview", key=f"save_interview_btn_{cid}"):
+                today = datetime.date.today()
+                if interview_date_val < today:
+                    st.error("Interview date cannot be before today's date.")
+                elif not interview_time_val or not interview_time_val.strip():
+                    st.error("Interview time cannot be empty.")
+                elif not db_ok:
+                    st.error("Database offline — cannot save schedule.")
+                else:
+                    ok, msg = db.update_candidate_interview(
+                        cid,
+                        str(interview_date_val),
+                        interview_time_val.strip(),
+                        interviewer_name_val.strip()
+                    )
+                    if ok:
+                        st.success(msg)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+        st.markdown("---")
+
+        # 2. Recruiter Notes & Feedback (Recruiter View Only)
+        col_notes, col_feedback = st.columns(2)
+
+        with col_notes:
+            st.markdown("#### 📝 Recruiter Internal Notes")
+            notes_val = st.text_area(
+                "Internal Notes",
+                value=candidate.get("recruiter_notes", ""),
+                height=140,
+                key=f"notes_input_{cid}"
+            )
+            if st.button("💾 Save Internal Notes", key=f"save_notes_btn_{cid}"):
+                if not db_ok:
+                    st.error("Database offline — cannot save notes.")
+                else:
+                    ok, msg = db.update_candidate_notes(cid, notes_val)
+                    if ok:
+                        st.success(msg)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+        with col_feedback:
+            st.markdown("#### 💬 Recruiter Interview Feedback")
+            feedback_val = st.text_area(
+                "Interview Feedback",
+                value=candidate.get("recruiter_feedback", ""),
+                height=140,
+                key=f"feedback_input_{cid}"
+            )
+            if st.button("💾 Save Interview Feedback", key=f"save_feedback_btn_{cid}"):
+                if not db_ok:
+                    st.error("Database offline — cannot save feedback.")
+                else:
+                    ok, msg = db.update_candidate_feedback(cid, feedback_val)
+                    if ok:
+                        st.success(msg)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(msg)
+
+        st.markdown("---")
+
+    # 3. Extracted Skills
+    st.markdown("#### 🎯 Extracted Skills")
+    skills_list = skills_to_list(candidate.get("skills"))
+    if skills_list:
+        skills_html = "".join([f'<span class="badge-blue">{html.escape(s)}</span>' for s in skills_list])
+        st.markdown(skills_html, unsafe_allow_html=True)
+    else:
+        st.info("No extracted skills detected.")
+
+    st.markdown("---")
+
+    # 4. Education, Experience, Certifications, Projects
+    t_col1, t_col2 = st.columns(2)
+    with t_col1:
+        st.markdown("#### 🎓 Education Timeline")
+        edu_text = html.escape(safe_text(candidate.get("education"), "No education found")).replace("\n", "<br>")
+        st.markdown(f'<div style="border-left: 2px solid var(--primary); padding-left: 1rem; margin-left: 0.5rem; margin-bottom: 1.5rem;"><p style="white-space: pre-wrap;">{edu_text}</p></div>', unsafe_allow_html=True)
+
+        st.markdown("#### 🏆 Certifications")
+        cert_text = html.escape(safe_text(candidate.get("certifications"), "None")).replace("\n", "<br>")
+        st.markdown(f'<div style="background: var(--bg-sec); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);"><p style="white-space: pre-wrap;">{cert_text}</p></div>', unsafe_allow_html=True)
+
+    with t_col2:
+        st.markdown("#### 💼 Work Experience Timeline")
+        exp_text = html.escape(safe_text(candidate.get("experience"), "No experience found")).replace("\n", "<br>")
+        st.markdown(f'<div style="border-left: 2px solid var(--primary); padding-left: 1rem; margin-left: 0.5rem; margin-bottom: 1.5rem;"><p style="white-space: pre-wrap;">{exp_text}</p></div>', unsafe_allow_html=True)
+
+        st.markdown("#### 🛠 Projects")
+        proj_text = html.escape(safe_text(candidate.get("projects"), "None")).replace("\n", "<br>")
+        st.markdown(f'<div style="background: var(--bg-sec); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);"><p style="white-space: pre-wrap;">{proj_text}</p></div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # 5. ATS Scoring Evaluation against Vacancies
+    import db_jobs
+    jds = db_jobs.get_all_jobs()
+    if jds:
+        st.markdown("#### 📊 Candidate ATS Evaluation")
+        jd_options = {jd["job_id"]: f"{jd['job_title']} at {jd.get('company_name', 'Unknown')}" for jd in jds}
+        selected_jd_id = st.selectbox("Select Job Description for ATS Match", options=list(jd_options.keys()), format_func=lambda x: jd_options[x], key=f"details_jd_select_{cid}")
+        selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), jds[0])
+        
+        ats_result = calculate_candidate_score(candidate, selected_job)
+        if db_ok and cid and selected_job:
+            db.save_evaluation(
+                selected_job.get("job_id"),
+                cid,
+                ats_result.get("hiring_score", 0),
+                ats_result.get("recommendation", "Not Recommended"),
+                ats_result.get("score_breakdown", {})
+            )
+        actual_ats = ats_result.get("hiring_score", 0)
+        
+        st.write(f"**ATS Hiring Score:** {actual_ats}% &nbsp;|&nbsp; **Recommendation:** {ats_result.get('recommendation')}")
+
+    st.markdown("---")
+    with st.expander("📄 View Raw Resume Text & Metadata"):
+        st.write("**Source Filename:**", candidate.get("source_filename", "—") or "—")
+        st.write("**Created Date:**", format_datetime(candidate.get("created_at")))
+        st.write("**Updated Date:**", format_datetime(candidate.get("updated_at")))
+        st.text_area("Raw Resume Text", candidate.get("raw_text", ""), height=250, disabled=True, key=f"raw_text_area_{cid}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_candidate_interview_taking(interview_id: str, candidate: dict):
+    intv = db_interviews.get_interview_by_id(interview_id)
+    if not intv:
+        st.error("Interview assignment not found.")
+        if st.button("⬅️ Exit to Dashboard"):
+            st.session_state.taking_interview_id = None
+            st.rerun()
+        return
+
+    questions = intv.get("generated_questions", [])
+    if not questions:
+        st.error("No questions found in this interview.")
+        return
+
+    status = intv.get("interview_status", "Assigned")
+
+    # If already submitted or evaluated, display full transcript & evaluation report
+    if status in ["Submitted", "Evaluated"]:
+        st.markdown('<p class="main-heading">🔒 Read-Only Interview Submission & Report</p>', unsafe_allow_html=True)
+        st.markdown(f'<p class="main-subtitle">Submitted on {format_datetime(intv.get("submitted_time") or intv.get("updated_at"))}</p>', unsafe_allow_html=True)
+        if st.button("⬅️ Back to Dashboard", type="secondary"):
+            st.session_state.taking_interview_id = None
+            st.rerun()
+
+        # Display AI Evaluation Summary Card if available
+        sum_doc = db_interview_evaluator.get_interview_summary(interview_id)
+        if sum_doc:
+            st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+            st.markdown('<p class="card-title">🏆 AI Interview Evaluation Summary</p>', unsafe_allow_html=True)
+            sc1, sc2, sc3, sc4, sc5 = st.columns(5)
+            with sc1:
+                st.markdown(f'<div class="metric-box"><div class="metric-value">{sum_doc.get("overall_interview_score", 0)}%</div><div class="metric-label">Overall Score</div></div>', unsafe_allow_html=True)
+            with sc2:
+                st.markdown(f'<div class="metric-box"><div class="metric-value" style="color:#10b981;">{sum_doc.get("avg_technical_score", 0)}%</div><div class="metric-label">Technical</div></div>', unsafe_allow_html=True)
+            with sc3:
+                st.markdown(f'<div class="metric-box"><div class="metric-value" style="color:#3b82f6;">{sum_doc.get("avg_communication_score", 0)}%</div><div class="metric-label">Communication</div></div>', unsafe_allow_html=True)
+            with sc4:
+                st.markdown(f'<div class="metric-box"><div class="metric-value" style="color:#8b5cf6;">{sum_doc.get("avg_problem_solving_score", sum_doc.get("avg_confidence_score", 0))}%</div><div class="metric-label">Problem Solving</div></div>', unsafe_allow_html=True)
+            with sc5:
+                st.markdown(f'<div class="metric-box"><div class="metric-value" style="color:#f59e0b;">{sum_doc.get("avg_confidence_score", 0)}%</div><div class="metric-label">Confidence</div></div>', unsafe_allow_html=True)
+
+            st.write(f"**Final Hiring Recommendation:** `{sum_doc.get('final_recommendation', 'Recommended')}`")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # Download PDF Report Button
+        try:
+            eval_list = db_interview_evaluator.get_evaluations_by_interview(interview_id)
+            pdf_bytes = interview_pdf_report.generate_interview_pdf_report(
+                {}, {}, interview_id, eval_list, sum_doc or {}
+            )
+            st.download_button(
+                label="📥 Download Full PDF Interview Report",
+                data=pdf_bytes,
+                file_name=f"Interview_Report_{interview_id}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception:
+            pass
+
+        # Render Chat Thread
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">💬 Full Interview Chat Transcript</p>', unsafe_allow_html=True)
+        msgs = db_interviews.get_interview_messages(interview_id)
+        if msgs:
+            for m in msgs:
+                sender = m.get("sender", "AI")
+                text = m.get("message_text", "")
+                is_v = m.get("is_voice", False)
+                if sender == "Candidate":
+                    with st.chat_message("user", avatar="👤"):
+                        v_badge = '<span class="badge-blue" style="font-size:0.75rem; margin-left:0.5rem;">🎤 Voice Response</span>' if is_v else ''
+                        st.markdown(f"**Candidate:** {v_badge}\n\n{html.escape(text)}", unsafe_allow_html=True)
+                else:
+                    with st.chat_message("assistant", avatar="🤖"):
+                        st.markdown(f"**AI Interviewer:**\n\n{text}")
+        else:
+            responses = db_interviews.get_responses_by_interview(interview_id)
+            for idx, r in enumerate(responses):
+                st.markdown(f"**Q{idx + 1}:** {html.escape(r.get('question', ''))}")
+                st.markdown(f'<div style="background: var(--bg-sec); padding: 0.8rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border);"><p style="white-space: pre-wrap;">{html.escape(r.get("answer", ""))}</p></div>', unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # In-progress interview answering workflow
+    st.markdown('<p class="main-heading">✍️ Candidate Assessment</p>', unsafe_allow_html=True)
+
+    if st.button("⬅️ Save & Exit to Dashboard", type="secondary"):
+        st.session_state.taking_interview_id = None
+        st.rerun()
+
+    draft_answers = intv.get("draft_answers", {})
+
+    if st.session_state.get("review_mode"):
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">📋 Review Your Answers Before Final Submission</p>', unsafe_allow_html=True)
+        st.caption("Please inspect your responses carefully. Once submitted, answers become read-only.")
+
+        responses_payload = []
+        for idx, q_text in enumerate(questions):
+            ans = draft_answers.get(str(idx), "").strip()
+            responses_payload.append({"question": q_text, "answer": ans})
+            st.markdown(f"**Question {idx + 1}:** {html.escape(q_text)}")
+            if ans:
+                st.markdown(f'<div style="background: var(--bg-sec); padding: 0.8rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border);"><p style="white-space: pre-wrap;">{html.escape(ans)}</p></div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div style="color: var(--danger); margin-bottom: 1rem;"><em>⚠️ Unanswered</em></div>', unsafe_allow_html=True)
+
+        st.markdown("---")
+        confirm_sub = st.checkbox("☑️ I confirm that these answers are my final responses and ready for recruiter submission.", key="confirm_sub_chk")
+
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            if st.button("⬅️ Edit Answers", key="back_to_edit_btn", use_container_width=True):
+                st.session_state.review_mode = False
+                st.rerun()
+        with col_b2:
+            if st.button("🚀 Submit Final Interview", key="final_submit_intv_btn", type="primary", use_container_width=True):
+                if not confirm_sub:
+                    st.warning("Please check the confirmation box before submitting.")
+                else:
+                    ok, msg = db_interviews.submit_interview_responses(
+                        interview_id,
+                        intv.get("candidate_id"),
+                        intv.get("job_id"),
+                        responses_payload
+                    )
+                    if ok:
+                        st.success(msg)
+                        st.session_state.review_mode = False
+                        st.rerun()
+                    else:
+                        st.error(msg)
+        st.markdown('</div>', unsafe_allow_html=True)
+        return
+
+    # Step-by-Step Question Interface
+    q_idx = st.session_state.get("taking_question_index", 0)
+    total_q = len(questions)
+    q_idx = max(0, min(total_q - 1, q_idx))
+    st.session_state.taking_question_index = q_idx
+
+    current_q_text = questions[q_idx]
+
+    # Progress Bar
+    pct = int(((q_idx + 1) / total_q) * 100)
+    custom_progress_bar(f"Question {q_idx + 1} of {total_q}", pct, "var(--primary)")
+
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown(f'<p class="card-title">Question {q_idx + 1} of {total_q}</p>', unsafe_allow_html=True)
+    st.markdown(f'<h3 style="margin-bottom: 1.5rem; color: var(--heading);">{html.escape(current_q_text)}</h3>', unsafe_allow_html=True)
+
+    curr_ans_val = draft_answers.get(str(q_idx), "")
+
+    answer_input = st.text_area(
+        "Type your answer below:*",
+        value=curr_ans_val,
+        height=220,
+        placeholder="Provide a thorough response...",
+        key=f"ans_field_{interview_id}_{q_idx}"
+    )
+
+    # Auto Save Draft on change
+    if answer_input != curr_ans_val:
+        draft_answers[str(q_idx)] = answer_input
+        db_interviews.update_interview_draft_answers(interview_id, draft_answers, "In Progress")
+
+    col_p, col_s, col_n = st.columns([1, 1, 1])
+
+    with col_p:
+        if q_idx > 0:
+            if st.button("⬅️ Previous", key=f"prev_btn_{q_idx}", use_container_width=True):
+                draft_answers[str(q_idx)] = answer_input
+                db_interviews.update_interview_draft_answers(interview_id, draft_answers, "In Progress")
+                st.session_state.taking_question_index = q_idx - 1
+                st.rerun()
+
+    with col_s:
+        if st.button("💾 Save Draft", key=f"save_draft_btn_{q_idx}", use_container_width=True):
+            draft_answers[str(q_idx)] = answer_input
+            ok, msg = db_interviews.update_interview_draft_answers(interview_id, draft_answers, "In Progress")
+            if ok:
+                st.success("Draft saved!")
+
+    with col_n:
+        if q_idx < total_q - 1:
+            if st.button("Next ➡️", key=f"next_btn_{q_idx}", type="primary", use_container_width=True):
+                draft_answers[str(q_idx)] = answer_input
+                db_interviews.update_interview_draft_answers(interview_id, draft_answers, "In Progress")
+                st.session_state.taking_question_index = q_idx + 1
+                st.rerun()
+        else:
+            if st.button("📋 Review & Submit", key=f"review_btn_{q_idx}", type="primary", use_container_width=True):
+                draft_answers[str(q_idx)] = answer_input
+                db_interviews.update_interview_draft_answers(interview_id, draft_answers, "In Progress")
+                st.session_state.review_mode = True
+                st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_candidate_portal_profile(candidate: dict):
+    import datetime
+    cid = candidate_id(candidate)
+    c_name = safe_text(candidate.get("full_name"), "Candidate")
+    email = safe_text(candidate.get("email"), "—")
+    phone = safe_text(candidate.get("phone"), "—")
+    stage = candidate.get("recruitment_stage", "Applied")
+
+    # 1. Header Card with Application Status
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    initial = c_name[0].upper() if c_name and c_name[0].isalpha() else "C"
+    stage_badge = render_stage_badge(stage)
+
+    st.markdown(
+        f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center;">
+                <div style="width: 65px; height: 65px; border-radius: 50%; background-color: var(--primary); display: flex; align-items: center; justify-content: center; margin-right: 1.2rem; color: white; font-weight: 700; font-size: 2rem; border: 3px solid var(--border);">
+                    {initial}
+                </div>
+                <div>
+                    <h2 style="margin: 0; padding: 0; color: var(--heading);">{html.escape(c_name)}</h2>
+                    <p style="color: var(--muted); font-size: 0.95rem; margin-top: 0.2rem;">📧 {html.escape(email)} &nbsp;&nbsp;|&nbsp;&nbsp; 📱 {html.escape(phone)}</p>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--muted); letter-spacing: 0.5px; margin-bottom: 0.3rem;">APPLICATION STATUS</div>
+                {stage_badge}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 2. Upcoming Interview Card
+    cand_email = candidate.get("email", "")
+    interviews = db_interviews.get_interviews_by_candidate(cid, cand_email)
+    pending_intvs = [i for i in interviews if i.get("interview_status") in ["Assigned", "In Progress"]]
+
+    c_date = candidate.get("interview_date")
+    c_time = candidate.get("interview_time")
+    c_interviewer = candidate.get("interviewer_name")
+
+    if pending_intvs or c_date or c_time:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">🗓️ Upcoming Scheduled Interview</p>', unsafe_allow_html=True)
+
+        if pending_intvs:
+            jds_all = load_jobs()
+            jd_map = {j.get("job_id"): j.get("job_title") for j in jds_all}
+            for intv_item in pending_intvs:
+                p_iid = intv_item.get("interview_id")
+                p_role = jd_map.get(intv_item.get("job_id"), "Role Position")
+                p_due = intv_item.get("due_date", "TBD")
+                p_status = intv_item.get("interview_status", "Assigned")
+
+                st.markdown(
+                    f"""
+                    <div style="background: var(--bg-sec); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 0.8rem;">
+                        <h4 style="margin: 0; color: var(--heading);">{html.escape(p_role)}</h4>
+                        <p style="margin: 0.3rem 0; color: var(--muted); font-size: 0.9rem;">
+                            🆔 Assignment ID: <code>{html.escape(p_iid)}</code> &nbsp;|&nbsp; 📅 Due Date: <strong>{html.escape(p_due)}</strong> &nbsp;|&nbsp; 📌 Status: <strong>{html.escape(p_status)}</strong>
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+        elif c_date or c_time:
+            st.info(
+                f"📅 **Interview Date:** {html.escape(str(c_date or 'TBD'))} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"⏰ **Time:** {html.escape(str(c_time or 'TBD'))} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"👨‍💼 **Interviewer:** {html.escape(str(c_interviewer or 'Hiring Team'))}"
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # 3. ATS Evaluation, Matched Skills, Missing Skills, and AI Improvement Suggestions
+    jds = load_jobs()
+    if jds:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">📊 ATS Resume Evaluation & Skill Match</p>', unsafe_allow_html=True)
+
+        jd_options = {jd["job_id"]: f"{jd['job_title']} at {jd.get('company_name', 'Company')}" for jd in jds}
+        selected_jd_id = st.selectbox(
+            "Select Target Vacancy for ATS Evaluation:",
+            options=list(jd_options.keys()),
+            format_func=lambda x: jd_options[x],
+            key=f"cand_profile_jd_select_{cid}"
+        )
+        selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), jds[0])
+
+        ats_result = calculate_candidate_score(candidate, selected_job)
+        score = ats_result.get("hiring_score", 0)
+        recommendation = ats_result.get("recommendation", "Consider")
+
+        # Color badges: 80-100 Green (#10b981), 60-79 Orange (#f59e0b), Below 60 Red (#ef4444)
+        if score >= 80:
+            score_color = "#10b981"
+            badge_class = "badge-green"
+        elif score >= 60:
+            score_color = "#f59e0b"
+            badge_class = "badge-yellow"
+        else:
+            score_color = "#ef4444"
+            badge_class = "badge-red"
+
+        # ATS Score Progress Bar & Card
+        st.markdown(
+            f"""
+            <div style="display: flex; gap: 1.5rem; align-items: center; background: var(--bg-sec); padding: 1.2rem; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 1.2rem;">
+                <div style="text-align: center; min-width: 100px;">
+                    <div style="font-size: 2.2rem; font-weight: 800; color: {score_color}; line-height: 1;">{score}%</div>
+                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--muted); margin-top: 0.3rem;">ATS RESUME SCORE</div>
+                </div>
+                <div style="flex-grow: 1;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+                        <span style="font-weight: 600; color: var(--heading);">Resume Match Level:</span>
+                        <span class="{badge_class}">{html.escape(recommendation)}</span>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        custom_progress_bar(f"ATS Match Score: {score}%", score, score_color)
+
+        st.markdown("---")
+
+        # Extract matched and missing skills
+        cand_skills = set(skills_to_list(candidate.get("skills")))
+        req_skills_raw = selected_job.get("required_skills", [])
+        if isinstance(req_skills_raw, str):
+            req_skills_list = [s.strip() for s in req_skills_raw.split(",") if s.strip()]
+        else:
+            req_skills_list = [str(s).strip() for s in req_skills_raw if str(s).strip()]
+
+        matched_skills = []
+        missing_skills = []
+
+        for req_s in req_skills_list:
+            req_lower = req_s.lower()
+            if any(req_lower in cs.lower() or cs.lower() in req_lower for cs in cand_skills):
+                matched_skills.append(req_s)
+            else:
+                missing_skills.append(req_s)
+
+        # Fallback if no specific skills listed
+        if not matched_skills and cand_skills:
+            matched_skills = list(cand_skills)[:4]
+
+        col_matched, col_missing = st.columns(2)
+
+        with col_matched:
+            st.markdown("#### ✅ Matched Skills")
+            if matched_skills:
+                m_html = "".join([f'<span class="badge-green" style="margin-right: 0.5rem; margin-bottom: 0.5rem; display: inline-block;">✓ {html.escape(s)}</span>' for s in matched_skills])
+                st.markdown(f'<div style="margin-top: 0.5rem;">{m_html}</div>', unsafe_allow_html=True)
+            else:
+                st.info("No direct skill matches detected for this vacancy.")
+
+        with col_missing:
+            st.markdown("#### ⚠️ Missing Skills")
+            if missing_skills:
+                ms_html = "".join([f'<span class="badge-yellow" style="margin-right: 0.5rem; margin-bottom: 0.5rem; display: inline-block;">{html.escape(s)}</span>' for s in missing_skills])
+                st.markdown(f'<div style="margin-top: 0.5rem;">{ms_html}</div>', unsafe_allow_html=True)
+            else:
+                st.success("You possess all primary required skills for this job role!")
+
+        st.markdown("---")
+
+        # 5. AI Improvement Suggestions
+        st.markdown("#### 💡 AI Improvement Suggestions")
+        suggestions = []
+        if missing_skills:
+            for ms in missing_skills[:3]:
+                suggestions.append(f"Add **{ms}** project experience or relevant certification to your profile.")
+        if len(cand_skills) < 5:
+            suggestions.append("Highlight specific framework, library, and cloud infrastructure tools in your skills list.")
+        suggestions.append("Include measurable metrics and quantitative achievements (e.g., 'Improved API latency by 35%') in project descriptions.")
+        suggestions.append("Ensure your work experience bullet points clearly reference your role in system design and architecture.")
+
+        for sug in suggestions[:4]:
+            st.markdown(f"• {sug}")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # 6. Candidate Profile Base Info (Extracted Skills, Education, Experience, Projects)
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown('<p class="card-title">👤 Candidate Profile Details</p>', unsafe_allow_html=True)
+
+    skills_list = skills_to_list(candidate.get("skills"))
+    st.markdown("#### 🎯 Skills Summary")
+    if skills_list:
+        sk_html = "".join([f'<span class="badge-blue" style="margin-right: 0.4rem; margin-bottom: 0.4rem; display: inline-block;">{html.escape(s)}</span>' for s in skills_list])
+        st.markdown(sk_html, unsafe_allow_html=True)
+    else:
+        st.info("No skills listed.")
+
+    st.markdown("---")
+    col_edu, col_exp = st.columns(2)
+
+    with col_edu:
+        st.markdown("#### 🎓 Education")
+        edu_text = html.escape(safe_text(candidate.get("education"), "No education specified")).replace("\n", "<br>")
+        st.markdown(f'<div style="border-left: 2px solid var(--primary); padding-left: 1rem; margin-bottom: 1rem;"><p style="white-space: pre-wrap; margin:0;">{edu_text}</p></div>', unsafe_allow_html=True)
+
+        st.markdown("#### 🏆 Certifications")
+        cert_text = html.escape(safe_text(candidate.get("certifications"), "None listed")).replace("\n", "<br>")
+        st.markdown(f'<div style="background: var(--bg-sec); padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border);"><p style="white-space: pre-wrap; margin:0;">{cert_text}</p></div>', unsafe_allow_html=True)
+
+    with col_exp:
+        st.markdown("#### 💼 Experience")
+        exp_text = html.escape(safe_text(candidate.get("experience"), "No experience specified")).replace("\n", "<br>")
+        st.markdown(f'<div style="border-left: 2px solid var(--primary); padding-left: 1rem; margin-bottom: 1rem;"><p style="white-space: pre-wrap; margin:0;">{exp_text}</p></div>', unsafe_allow_html=True)
+
+        st.markdown("#### 🛠 Projects")
+        proj_text = html.escape(safe_text(candidate.get("projects"), "None listed")).replace("\n", "<br>")
+        st.markdown(f'<div style="background: var(--bg-sec); padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border);"><p style="white-space: pre-wrap; margin:0;">{proj_text}</p></div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 7. Past Interview History
+    past_intvs = [i for i in interviews if i.get("interview_status") in ["Submitted", "Evaluated"]]
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown('<p class="card-title">📜 Interview History</p>', unsafe_allow_html=True)
+
+    if not past_intvs:
+        st.caption("No past interview history found.")
+    else:
+        jds_all = load_jobs()
+        jd_map = {j.get("job_id"): j.get("job_title") for j in jds_all}
+
+        for idx, intv_item in enumerate(past_intvs):
+            iid = intv_item.get("interview_id")
+            role_name = jd_map.get(intv_item.get("job_id"), "Role Position")
+            sub_date = format_datetime(intv_item.get("submitted_time") or intv_item.get("updated_at"))
+            st_val = intv_item.get("interview_status", "Submitted")
+
+            sum_doc = db_interview_evaluator.get_interview_summary(iid)
+            score_str = f"{sum_doc.get('overall_interview_score')}% ({sum_doc.get('final_recommendation')})" if sum_doc else "Pending Evaluation"
+
+            st.markdown(
+                f"""
+                <div style="background: var(--bg-sec); padding: 0.9rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 0.8rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0; color: var(--heading);">{html.escape(role_name)}</h4>
+                            <p style="margin: 0.2rem 0; color: var(--muted); font-size: 0.85rem;">
+                                🆔 Interview ID: <code>{html.escape(iid)}</code> &nbsp;|&nbsp; 📅 Submitted: {html.escape(sub_date)} &nbsp;|&nbsp; 📌 Status: <strong>{html.escape(st_val)}</strong>
+                            </p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.75rem; color: var(--muted); font-weight: 600;">EVALUATION SCORE</div>
+                            <span class="badge-blue">{html.escape(score_str)}</span>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+import conversational_ai_interview
+
+
+def render_candidate_interview_taking(interview_id: str, cand: dict[str, Any]):
+    intv = db_interviews.get_interview_by_id(interview_id)
+    if not intv:
+        st.error("Interview assignment not found.")
+        if st.button("⬅️ Return to Candidate Portal"):
+            st.session_state.taking_interview_id = None
+            st.rerun()
+        st.stop()
+
+    jds = load_jobs()
+    job_doc = next((j for j in jds if j.get("job_id") == intv.get("job_id")), {})
+    job_title = job_doc.get("job_title", "Software Developer")
+    required_skills = job_doc.get("required_skills", [])
+    if isinstance(required_skills, str):
+        required_skills = [s.strip() for s in required_skills.split(",") if s.strip()]
+
+    cand_name = safe_text(cand.get("full_name"), "Candidate")
+    cand_id = candidate_id(cand)
+
+    st.markdown(f'<p class="main-heading">🤖 Real-Time Conversational AI Voice Interview</p>', unsafe_allow_html=True)
+    st.markdown(f'<p class="main-subtitle">Target Position: <strong>{html.escape(job_title)}</strong> — Assignment ID: <code>{interview_id}</code></p>', unsafe_allow_html=True)
+
+    if st.button("⬅️ Exit Interview & Return to Dashboard", type="secondary"):
+        st.session_state.taking_interview_id = None
+        st.rerun()
+
+    # Load structured messages and legacy turns
+    messages = db_interviews.get_interview_messages(interview_id)
+    turns = db_interviews.get_conversational_turns(interview_id)
+
+    # 1. Initialize opening greeting & question if starting fresh
+    q_source = intv.get("question_source", "Recruiter Question Set")
+    gen_questions = intv.get("generated_questions", [])
+
+    greeting_text = conversational_ai_interview.generate_greeting(cand_name, job_title)
+
+    if q_source == "Recruiter Question Set" and gen_questions:
+        first_q = gen_questions[0]
+    else:
+        first_q = conversational_ai_interview.generate_first_question(cand_name, job_title, required_skills)
+
+    opening_msg = f"{greeting_text}\n\n{first_q}"
+
+    if not messages:
+        db_interviews.append_chat_message(
+            interview_id=interview_id,
+            sender="AI",
+            message_text=opening_msg,
+            is_voice=False,
+            ai_reasoning="Opening candidate welcome greeting and Question 1 from selected Recruiter Question Set." if (q_source == "Recruiter Question Set" and gen_questions) else "Opening candidate welcome greeting and initial skill question."
+        )
+        messages = db_interviews.get_interview_messages(interview_id)
+
+    # Render Interactive Chat History
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown('<p class="card-title">💬 Real-Time Interview Chat Thread</p>', unsafe_allow_html=True)
+
+    suggest_complete = False
+    cand_turn_count = 0
+
+    for idx, msg in enumerate(messages):
+        sender = msg.get("sender", "AI")
+        text = msg.get("message_text", "")
+        is_v = msg.get("is_voice", False)
+        reasoning = msg.get("ai_reasoning", "")
+
+        if sender == "Candidate":
+            cand_turn_count += 1
+            with st.chat_message("user", avatar="👤"):
+                v_badge = '<span class="badge-blue" style="font-size:0.75rem; margin-left:0.5rem;">🎤 Voice Response</span>' if is_v else ''
+                st.markdown(f"**{html.escape(cand_name)}:** {v_badge}\n\n{html.escape(text)}", unsafe_allow_html=True)
+        else:
+            with st.chat_message("assistant", avatar="🤖"):
+                st.markdown(f"**AI Interviewer:**\n\n{text}")
+                if reasoning:
+                    with st.expander("🧠 View AI Reasoning & Context Analysis"):
+                        st.caption(f"**AI Logic:** {reasoning}")
+
+    if cand_turn_count >= 3:
+        suggest_complete = True
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Check if interview is already submitted
+    if intv.get("interview_status") in ["Submitted", "Evaluated"]:
+        st.success("🎉 This interview has been completed and submitted for evaluation.")
+        st.stop()
+
+    # Determine active AI question for current turn
+    last_ai_msg = next((m for m in reversed(messages) if m.get("sender") == "AI"), None)
+    active_question = last_ai_msg.get("message_text", opening_msg) if last_ai_msg else opening_msg
+
+    # Candidate Response Controls (Voice Microphone + Editable Text Input)
+    st.markdown('<div class="custom-card" style="margin-top: 1rem;">', unsafe_allow_html=True)
+    st.markdown("#### 🎙️ Respond via Voice (Speech-to-Text) or Type Text")
+
+    col_voice, col_text = st.columns([1.5, 2.5])
+
+    # 1. Voice Microphone Recording Input
+    transcribed_text = ""
+    is_voice_input = False
+
+    with col_voice:
+        st.markdown("**Option 1: Microphone (Voice)**")
+        audio_value = st.audio_input("Record Voice Response", key=f"audio_rec_{interview_id}_{len(messages)}")
+        if audio_value is not None:
+            audio_bytes = audio_value.read()
+            if audio_bytes and len(audio_bytes) > 100:
+                with st.spinner("⏳ Transcribing speech via AI Voice recognition..."):
+                    import groq_whisper_service
+                    ok_trans, trans_res = groq_whisper_service.transcribe_audio_groq(audio_bytes, filename="voice_recording.wav")
+                    if ok_trans:
+                        transcribed_text = trans_res
+                        is_voice_input = True
+                        st.success("✅ Voice transcribed successfully! Review or edit below.")
+                    else:
+                        st.error(f"⚠️ {trans_res}")
+
+    # 2. Text Area Form for Editing and Sending
+    with col_text:
+        st.markdown("**Option 2: Text Response (Editable)**")
+        with st.form(key=f"cand_response_form_{len(messages)}", clear_on_submit=True):
+            user_input = st.text_area(
+                "Type or edit your response:",
+                value=transcribed_text,
+                height=110,
+                placeholder="Type your response here or record voice using the microphone on the left..."
+            )
+            submit_col1, submit_col2 = st.columns([2, 1.5])
+            with submit_col2:
+                send_clicked = st.form_submit_button("📤 Send Response", type="primary", use_container_width=True)
+
+            if send_clicked and user_input.strip():
+                with st.spinner("🤖 AI is analyzing your response and formulating the next question..."):
+                    q_source = intv.get("question_source", "Recruiter Question Set")
+                    allow_followup = intv.get("allow_ai_followup", True)
+                    gen_questions = intv.get("generated_questions", [])
+
+                    # Check if last AI message was a follow-up
+                    last_ai_msg = next((m for m in reversed(messages) if m.get("sender") == "AI"), None)
+                    last_was_followup = bool(last_ai_msg and ("Follow-up" in last_ai_msg.get("ai_reasoning", "") or last_ai_msg.get("is_followup")))
+
+                    if q_source == "Recruiter Question Set" and gen_questions:
+                        # Determine current question index
+                        primary_cand_turns = [t for t in turns if not t.get("is_followup")]
+                        current_q_idx = len(primary_cand_turns)
+
+                        if allow_followup and not last_was_followup and current_q_idx < len(gen_questions):
+                            # Generate ONE AI follow-up for current question
+                            follow_res = conversational_ai_interview.generate_followup_question(
+                                original_question=active_question,
+                                candidate_answer=user_input.strip(),
+                                job_title=job_title,
+                                groq_api_key=os.getenv("GROQ_API_KEY")
+                            )
+                            ack = follow_res.get("acknowledgement", "Interesting.")
+                            next_q = follow_res.get("next_question", "")
+                            reasoning = "AI Follow-up: " + follow_res.get("ai_reasoning", "")
+                            ai_reply = f"{ack}\n\n{next_q}"
+                        else:
+                            # Move to next primary recruiter question
+                            next_primary_idx = current_q_idx + 1 if last_was_followup else current_q_idx + 1
+                            if next_primary_idx < len(gen_questions):
+                                next_q = gen_questions[next_primary_idx]
+                                ack = "Thank you."
+                                reasoning = f"Recruiter Question Set: Advanced to question #{next_primary_idx+1}."
+                                ai_reply = f"{ack}\n\n{next_q}"
+                            else:
+                                next_q = "Thank you for completing all questions in this interview! Click 'Finish & Submit Interview' below to finalize your evaluation report."
+                                ack = "Interview Questions Completed."
+                                reasoning = "Completed all recruiter question set items."
+                                ai_reply = f"{ack}\n\n{next_q}"
+                    else:
+                        # Fully AI Generated Mode
+                        turn_result = conversational_ai_interview.generate_next_interview_turn(
+                            candidate_name=cand_name,
+                            job_title=job_title,
+                            required_skills=required_skills,
+                            conversation_history=turns,
+                            latest_answer=user_input.strip(),
+                            groq_api_key=os.getenv("GROQ_API_KEY")
+                        )
+                        ack = turn_result.get("acknowledgement", "")
+                        next_q = turn_result.get("next_question", "")
+                        reasoning = turn_result.get("ai_reasoning", "")
+                        ai_reply = f"{ack}\n\n{next_q}" if ack else next_q
+
+                    # Append Candidate message
+                    db_interviews.append_chat_message(
+                        interview_id=interview_id,
+                        sender="Candidate",
+                        message_text=user_input.strip(),
+                        is_voice=is_voice_input,
+                        ai_reasoning=""
+                    )
+
+                    # Append AI message
+                    db_interviews.append_chat_message(
+                        interview_id=interview_id,
+                        sender="AI",
+                        message_text=ai_reply,
+                        is_voice=False,
+                        ai_reasoning=reasoning
+                    )
+
+                    # Save legacy turn for backward compatibility
+                    db_interviews.append_conversational_turn(
+                        interview_id=interview_id,
+                        question=active_question,
+                        answer=user_input.strip(),
+                        ai_reasoning=reasoning
+                    )
+
+                    st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Finish & Submit Interview Section
+    st.markdown("---")
+    f_col1, f_col2 = st.columns([2.5, 1.5])
+    with f_col1:
+        if suggest_complete or cand_turn_count >= 3:
+            st.info("💡 You have completed key interview topics. You can submit your interview now for final AI evaluation.")
+
+    with f_col2:
+        if st.button("🏁 Finish & Submit Interview", type="primary", use_container_width=True, disabled=cand_turn_count < 1):
+            with st.spinner("Submitting interview responses and compiling full evaluation report..."):
+                final_turns = db_interviews.get_conversational_turns(interview_id)
+                responses_list = [
+                    {"question": t.get("question", ""), "answer": t.get("answer", "")}
+                    for t in final_turns
+                ]
+
+                # Submit final responses
+                ok_sub, msg_sub = db_interviews.submit_interview_responses(
+                    interview_id=interview_id,
+                    candidate_id=cand_id,
+                    job_id=intv.get("job_id"),
+                    responses_list=responses_list
+                )
+
+                # Compute full post-interview AI evaluation report
+                try:
+                    import db_interview_evaluator
+                    db_interview_evaluator.evaluate_and_save_interview(interview_id)
+                except Exception:
+                    pass
+
+                st.session_state.taking_interview_id = None
+                st.success("🎉 Interview completed and submitted successfully! Your AI evaluation report has been generated.")
+                st.rerun()
+def render_candidate_timeline_stepper(app_doc: dict[str, Any], intv_match: dict[str, Any] | None = None) -> str:
+    ats_score = app_doc.get("ats_score")
+    rec = app_doc.get("recommendation", "")
+    intv_status = intv_match.get("interview_status") if intv_match else app_doc.get("interview_status", "Not Assigned")
+    final_dec = app_doc.get("final_decision", "Pending")
+    is_overridden = app_doc.get("is_overridden", False)
+
+    is_eligible = db_applications.is_eligible_for_interview(rec, is_overridden)
+
+    # Step states: 'completed', 'active', 'disabled'
+    s1 = "completed"
+    s2 = "completed" if ats_score is not None else "active"
+
+    if intv_status in ["Assigned", "In Progress", "Submitted", "Evaluated"] or is_eligible:
+        s3 = "completed" if intv_status in ["Submitted", "Evaluated"] else "active"
+    else:
+        s3 = "disabled" if rec in ["Not Recommended", "Needs Improvement"] else "active"
+
+    s4 = "completed" if intv_status in ["Submitted", "Evaluated"] else ("active" if s3 == "completed" else "disabled")
+    s5 = "completed" if final_dec in ["Selected", "Selected (Hired)", "Rejected", "Shortlisted"] else ("active" if s4 == "completed" else "disabled")
+
+    def get_style(state):
+        if state == "completed":
+            return "background:#10b981; color:white; border-color:#10b981;", "✓"
+        elif state == "active":
+            return "background:#3b82f6; color:white; border-color:#3b82f6;", "●"
+        else:
+            return "background:var(--bg-sec); color:var(--muted); border-color:var(--border);", "○"
+
+    st1, icon1 = get_style(s1)
+    st2, icon2 = get_style(s2)
+    st3, icon3 = get_style(s3)
+    st4, icon4 = get_style(s4)
+    st5, icon5 = get_style(s5)
+
+    return f"""
+    <div style="display: flex; align-items: center; justify-content: space-between; margin: 0.8rem 0; padding: 0.8rem 0.5rem; background: var(--bg-sec); border-radius: 8px; border: 1px solid var(--border);">
+        <div style="text-align: center; flex: 1;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.3rem auto; font-size: 0.85rem; font-weight: bold; {st1}">
+                {icon1}
+            </div>
+            <div style="font-size: 0.75rem; font-weight: 600; color: var(--heading);">1. Applied</div>
+        </div>
+        <div style="flex: 0.5; height: 2px; background: var(--border);"></div>
+        <div style="text-align: center; flex: 1;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.3rem auto; font-size: 0.85rem; font-weight: bold; {st2}">
+                {icon2}
+            </div>
+            <div style="font-size: 0.75rem; font-weight: 600; color: var(--heading);">2. ATS Evaluation</div>
+        </div>
+        <div style="flex: 0.5; height: 2px; background: var(--border);"></div>
+        <div style="text-align: center; flex: 1;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.3rem auto; font-size: 0.85rem; font-weight: bold; {st3}">
+                {icon3}
+            </div>
+            <div style="font-size: 0.75rem; font-weight: 600; color: var(--heading);">3. Interview Assigned</div>
+        </div>
+        <div style="flex: 0.5; height: 2px; background: var(--border);"></div>
+        <div style="text-align: center; flex: 1;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.3rem auto; font-size: 0.85rem; font-weight: bold; {st4}">
+                {icon4}
+            </div>
+            <div style="font-size: 0.75rem; font-weight: 600; color: var(--heading);">4. Interview Completed</div>
+        </div>
+        <div style="flex: 0.5; height: 2px; background: var(--border);"></div>
+        <div style="text-align: center; flex: 1;">
+            <div style="width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.3rem auto; font-size: 0.85rem; font-weight: bold; {st5}">
+                {icon5}
+            </div>
+            <div style="font-size: 0.75rem; font-weight: 600; color: var(--heading);">5. Final Decision</div>
+        </div>
+    </div>
+    """
+
+
+def render_candidate_portal():
+    cand = st.session_state.get("current_candidate_user")
+    if not cand:
+        st.warning("⚠️ No Candidate account selected. Please select a candidate profile from the sidebar to log in.")
+        st.stop()
+
+    cand_id = candidate_id(cand)
+    cand_name = safe_text(cand.get("full_name"), "Candidate")
+
+    cand_page = st.session_state.get("candidate_active_page", "Dashboard")
+    taking_intv_id = st.session_state.get("taking_interview_id")
+
+    if taking_intv_id:
+        render_candidate_interview_taking(taking_intv_id, cand)
+        st.stop()
+
+    if cand_page == "Dashboard":
+        st.markdown(f'<p class="main-heading">👋 Welcome, {html.escape(cand_name)}!</p>', unsafe_allow_html=True)
+        st.markdown('<p class="main-subtitle">Candidate Portal — Track your job applications, ATS recommendations, and AI interviews</p>', unsafe_allow_html=True)
+
+        cand_email = cand.get("email", "")
+        applications = db_applications.get_applications_by_candidate(cand_id, cand_email)
+        interviews = db_interviews.get_interviews_by_candidate(cand_id, cand_email)
+
+        eligible_cnt = len([a for a in applications if db_applications.is_eligible_for_interview(a.get("recommendation", ""), a.get("is_overridden", False))])
+        assigned_cnt = len([i for i in interviews if i.get("interview_status") == "Assigned"])
+        decided_cnt = len([a for a in applications if a.get("final_decision") in ["Selected", "Rejected", "Shortlisted"]])
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.markdown(f'<div class="metric-box"><div class="metric-value">{len(applications)}</div><div class="metric-label">Applications</div></div>', unsafe_allow_html=True)
+        with c2:
+            st.markdown(f'<div class="metric-box"><div class="metric-value" style="color:#10b981;">{eligible_cnt}</div><div class="metric-label">Interview Eligible</div></div>', unsafe_allow_html=True)
+        with c3:
+            st.markdown(f'<div class="metric-box"><div class="metric-value" style="color:#f59e0b;">{assigned_cnt}</div><div class="metric-label">Assigned Interviews</div></div>', unsafe_allow_html=True)
+        with c4:
+            st.markdown(f'<div class="metric-box"><div class="metric-value" style="color:#6366f1;">{decided_cnt}</div><div class="metric-label">Final Decisions</div></div>', unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">📋 Your Job Applications</p>', unsafe_allow_html=True)
+
+        if not applications:
+            st.info("You haven't applied for any job positions yet. Click on **'Browse Jobs'** in the sidebar to explore open roles and submit your application!")
+        else:
+            jds = load_jobs()
+            jd_map = {j.get("job_id"): j for j in jds}
+
+            for idx, app_doc in enumerate(applications):
+                jid = app_doc.get("job_id")
+                job_data = jd_map.get(jid, {})
+                jtitle = job_data.get("job_title") or app_doc.get("job_title") or f"Position {jid}"
+                comp_name = job_data.get("company_name") or app_doc.get("company_name") or "Talent Corp"
+
+                ats_score = app_doc.get("ats_score", 0.0)
+                rec = app_doc.get("recommendation", "N/A")
+                status = app_doc.get("status", "Applied")
+                intv_status = app_doc.get("interview_status", "Not Assigned")
+                intv_score = app_doc.get("interview_score")
+                final_dec = app_doc.get("final_decision", "Pending")
+
+                # Look for matching interview assignment
+                intv_match = next((i for i in interviews if i.get("job_id") == jid or i.get("interview_id") == app_doc.get("interview_id")), None)
+                iid = intv_match.get("interview_id") if intv_match else None
+                curr_intv_status = intv_match.get("interview_status", intv_status) if intv_match else intv_status
+                intv_date = format_datetime(intv_match.get("due_date") or intv_match.get("assigned_date") or app_doc.get("created_at")) if intv_match else format_datetime(app_doc.get("created_at"))
+
+                # Recommendation Badge Colors
+                if rec in ["Highly Recommended", "Excellent Match"]:
+                    rec_badge = f'<span class="badge-green">{html.escape(rec)}</span>'
+                elif rec == "Recommended":
+                    rec_badge = f'<span class="badge-blue">{html.escape(rec)}</span>'
+                elif rec == "Needs Improvement":
+                    rec_badge = f'<span class="badge-amber">{html.escape(rec)}</span>'
+                else:
+                    rec_badge = f'<span class="badge-red">{html.escape(rec)}</span>'
+
+                # Final decision badge
+                if final_dec in ["Selected", "Selected (Hired)"]:
+                    dec_badge = '<span class="badge-green" style="font-weight:700;">🎉 Selected (Hired)</span>'
+                elif final_dec == "Rejected":
+                    dec_badge = '<span class="badge-red" style="font-weight:700;">❌ Rejected</span>'
+                elif final_dec == "Shortlisted":
+                    dec_badge = '<span class="badge-blue" style="font-weight:700;">⭐ Shortlisted</span>'
+                else:
+                    dec_badge = '<span class="badge-yellow">⏳ Decision Pending</span>'
+
+                # Compute current stage string for timeline
+                if final_dec in ["Selected", "Rejected", "Shortlisted"]:
+                    current_stage_str = f"Final Decision: {final_dec}"
+                elif curr_intv_status in ["Submitted", "Evaluated"]:
+                    current_stage_str = "Interview Completed"
+                elif curr_intv_status in ["Assigned", "In Progress"]:
+                    current_stage_str = "Interview Assigned"
+                elif db_applications.is_eligible_for_interview(rec, app_doc.get("is_overridden", False)):
+                    current_stage_str = "Eligible for Interview"
+                else:
+                    current_stage_str = "ATS Evaluation"
+
+                st.markdown('<div class="custom-card" style="margin-bottom: 1.2rem;">', unsafe_allow_html=True)
+                st.markdown(f"### {html.escape(jtitle)} — <span style='font-size:1.1rem; color:var(--muted);'>{html.escape(comp_name)}</span> <code style='font-size:0.85rem; margin-left:0.5rem;'>{html.escape(jid)}</code>", unsafe_allow_html=True)
+
+                # Render 5-stage Timeline Stepper
+                timeline_html = render_candidate_timeline_stepper(app_doc, intv_match)
+                st.markdown(timeline_html, unsafe_allow_html=True)
+
+                # Application Metadata Grid
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    st.markdown(
+                        f"""
+                        <p style="margin: 0.3rem 0; font-size: 0.9rem;">
+                            🎯 <strong>ATS Score:</strong> <span style="font-weight:700; color:var(--primary);">{ats_score}%</span><br>
+                            🤖 <strong>Recommendation:</strong> {rec_badge}<br>
+                            📍 <strong>Current Stage:</strong> <code>{html.escape(current_stage_str)}</code>
+                        </p>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                with col_m2:
+                    st.markdown(
+                        f"""
+                        <p style="margin: 0.3rem 0; font-size: 0.9rem;">
+                            📅 <strong>Interview Date:</strong> {html.escape(intv_date)}<br>
+                            💬 <strong>Interview Status:</strong> <code>{html.escape(curr_intv_status)}</code> {f'({intv_score}%)' if intv_score is not None else ''}<br>
+                            🏆 <strong>Final Decision:</strong> {dec_badge}
+                        </p>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                # Recommendation-specific status notices & callouts
+                is_ineligible = (rec in ["Not Recommended", "Needs Improvement", "Weak Match"]) and not app_doc.get("is_overridden", False)
+
+                if is_ineligible:
+                    st.markdown(
+                        """
+                        <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 0.8rem 1rem; border-radius: 6px; margin-top: 0.8rem;">
+                            <strong style="color: #ef4444;">⚠️ Application Status Notice:</strong><br>
+                            <span style="font-size: 0.9rem; color: var(--text);">Your application did not qualify for the interview stage.</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                else:
+                    if iid and curr_intv_status in ["Assigned", "In Progress"]:
+                        st.markdown(
+                            """
+                            <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 0.8rem 1rem; border-radius: 6px; margin-top: 0.8rem;">
+                                <strong style="color: #10b981;">🎯 Interview Assigned:</strong><br>
+                                <span style="font-size: 0.9rem; color: var(--text);">You have an active <strong>Conversational AI Interview</strong> assigned for this position.</span>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        st.write("")
+                        btn_label = "▶️ Start Upcoming Interview" if curr_intv_status == "Assigned" else "▶️ Resume Upcoming Interview"
+                        if st.button(btn_label, key=f"dash_start_intv_{jid}_{idx}", type="primary", use_container_width=True):
+                            st.session_state.taking_interview_id = iid
+                            st.session_state.taking_question_index = 0
+                            st.session_state.review_mode = False
+                            st.rerun()
+                    elif iid and curr_intv_status in ["Submitted", "Evaluated"]:
+                        st.write("")
+                        if st.button("🔒 View Submission History", key=f"dash_view_sub_{jid}_{idx}", use_container_width=True):
+                            st.session_state.taking_interview_id = iid
+                            st.rerun()
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        st.stop()
+
+    elif cand_page == "Browse Jobs":
+        st.markdown('<p class="main-heading">💼 Browse Available Jobs</p>', unsafe_allow_html=True)
+        st.markdown('<p class="main-subtitle">Explore open job descriptions and submit job-specific applications</p>', unsafe_allow_html=True)
+
+        jobs = load_jobs()
+        if not jobs:
+            st.warning("No job vacancies available at this moment.")
+            st.stop()
+
+        cand_email = cand.get("email", "")
+        for idx, j in enumerate(jobs):
+            jid = j.get("job_id")
+            jtitle = j.get("job_title", "Position")
+            comp = j.get("company_name", "Company")
+            skills = j.get("required_skills", [])
+            if isinstance(skills, list):
+                skills_str = ", ".join(skills)
+            else:
+                skills_str = str(skills)
+
+            app_doc = db_applications.get_application(cand_id, jid)
+
+            st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+            c_j1, c_j2 = st.columns([3.5, 1.5])
+            with c_j1:
+                st.markdown(f"### {html.escape(jtitle)} — <span style='font-size:1.1rem; color:var(--muted);'>{html.escape(comp)}</span>", unsafe_allow_html=True)
+                st.write(f"**Location:** {j.get('location', 'N/A')} | **Experience:** {j.get('experience_required', 'N/A')} | **Salary:** {j.get('salary', 'N/A')}")
+                st.write(f"**Required Skills:** `{skills_str}`")
+                with st.expander("📄 View Job Description"):
+                    st.write(j.get("job_description", ""))
+
+            with c_j2:
+                if app_doc:
+                    st.markdown('<span class="badge-green" style="font-size:1rem;">✅ Applied</span>', unsafe_allow_html=True)
+                    st.write(f"**ATS Score:** {app_doc.get('ats_score')}%")
+                    st.write(f"**Recommendation:** {app_doc.get('recommendation')}")
+                    with st.expander("🔄 Update / Re-evaluate Application"):
+                        uploaded_resume = st.file_uploader("Upload Updated Resume (PDF/TXT)", type=["pdf", "txt", "docx"], key=f"re_upload_{jid}_{idx}")
+                        if st.button("Re-evaluate ATS", key=f"re_eval_{jid}_{idx}", use_container_width=True):
+                            if uploaded_resume:
+                                try:
+                                    import parser
+                                    parsed_res = parser.parse_resume_file(uploaded_resume)
+                                    if parsed_res:
+                                        cand["skills"] = parsed_res.get("skills", cand.get("skills", []))
+                                        cand["raw_text"] = parsed_res.get("raw_text", cand.get("raw_text", ""))
+                                        db.save_candidate(cand)
+                                except Exception:
+                                    pass
+                            ok, msg, res = db_applications.evaluate_and_apply(cand, j)
+                            st.success(f"ATS Evaluation updated! Score: {res.get('ats_score')}% ({res.get('recommendation')})")
+                            st.rerun()
+                else:
+                    uploaded_resume = st.file_uploader("Upload Resume (Optional PDF/TXT)", type=["pdf", "txt", "docx"], key=f"apply_upload_{jid}_{idx}")
+                    if st.button("🚀 Apply to Job", key=f"apply_btn_{jid}_{idx}", type="primary", use_container_width=True):
+                        if uploaded_resume:
+                            try:
+                                import parser
+                                parsed_res = parser.parse_resume_file(uploaded_resume)
+                                if parsed_res:
+                                    cand["skills"] = parsed_res.get("skills", cand.get("skills", []))
+                                    cand["raw_text"] = parsed_res.get("raw_text", cand.get("raw_text", ""))
+                                    db.save_candidate(cand)
+                            except Exception:
+                                pass
+                        ok, msg, res = db_applications.evaluate_and_apply(cand, j)
+                        if ok and res:
+                            st.success(f"🎉 Application submitted for {jtitle}! ATS Score: {res.get('ats_score')}% ({res.get('recommendation')})")
+                            st.rerun()
+                        else:
+                            st.error(msg)
+            st.markdown('</div>', unsafe_allow_html=True)
+        st.stop()
+
+    elif cand_page == "Assigned Interviews":
+        st.markdown('<p class="main-heading">📝 Your Assigned Interviews</p>', unsafe_allow_html=True)
+        st.markdown('<p class="main-subtitle">View and complete pending interview assignments</p>', unsafe_allow_html=True)
+        cand_email = cand.get("email", "")
+        interviews = db_interviews.get_interviews_by_candidate(cand_id, cand_email)
+        pending = [i for i in interviews if i.get("interview_status") in ["Assigned", "In Progress"]]
+
+        if not pending:
+            st.info("No pending assigned interviews at this time.")
+        else:
+            jds = load_jobs()
+            jd_map = {j.get("job_id"): j.get("job_title") for j in jds}
+            for idx, intv in enumerate(pending):
+                iid = intv.get("interview_id")
+                jtitle = jd_map.get(intv.get("job_id"), "Role Position")
+                st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+                st.markdown(f"### {html.escape(jtitle)}")
+                st.write(f"**Interview ID:** `{iid}` | **Due Date:** {intv.get('due_date')} | **Status:** {intv.get('interview_status')}")
+                if st.button("▶️ Take Interview", key=f"take_p_{iid}_{idx}", type="primary"):
+                    st.session_state.taking_interview_id = iid
+                    st.session_state.taking_question_index = 0
+                    st.session_state.review_mode = False
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+        st.stop()
+
+    elif cand_page == "Past Interviews":
+        st.markdown('<p class="main-heading">📜 Past Submitted Interviews</p>', unsafe_allow_html=True)
+        st.markdown('<p class="main-subtitle">Read-only history of completed interview submissions</p>', unsafe_allow_html=True)
+        cand_email = cand.get("email", "")
+        interviews = db_interviews.get_interviews_by_candidate(cand_id, cand_email)
+        past = [i for i in interviews if i.get("interview_status") in ["Submitted", "Evaluated"]]
+
+        if not past:
+            st.info("No past submitted interviews found.")
+        else:
+            for idx, intv in enumerate(past):
+                iid = intv.get("interview_id")
+                st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+                st.markdown(f"#### Interview `{iid}` — Submitted")
+                responses = db_interviews.get_responses_by_interview(iid)
+                for r in responses:
+                    st.markdown(f"**Q: {html.escape(r.get('question', ''))}**")
+                    st.markdown(f'<div style="background: var(--bg-sec); padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1rem;"><p style="white-space: pre-wrap;">{html.escape(r.get("answer", ""))}</p></div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+        st.stop()
+
+    elif cand_page == "Profile":
+        st.markdown('<p class="main-heading">👤 Candidate Profile</p>', unsafe_allow_html=True)
+        render_candidate_portal_profile(cand)
+        st.stop()
+
+
+
 # ── Cached database readers ───────────────────────────────────────────────────
 @st_cache_data_no_spinner(ttl=120)
 def load_candidates(search_query: str = "") -> list[dict]:
+    res = []
     try:
         if hasattr(db, "get_all_candidates_light"):
-            return db.get_all_candidates_light(search_query)
-
-        candidates, err = db.get_recent_candidates(limit=100)
-        return [] if err else candidates
+            res = db.get_all_candidates_light(search_query)
+        if not res:
+            candidates, err = db.get_recent_candidates(limit=100)
+            res = [] if err else candidates
     except Exception:
-        return []
+        pass
+
+    if not res:
+        try:
+            import offline_storage
+            off_dict = offline_storage.load_offline_data("candidates")
+            res = list(off_dict.values())
+        except Exception:
+            pass
+
+    if not res and "DEFAULT_MOCK_CANDIDATES" in globals():
+        res = DEFAULT_MOCK_CANDIDATES
+
+    return res or []
 
 
 @st_cache_data_no_spinner(ttl=120)
@@ -760,10 +2165,12 @@ def load_dashboard_stats() -> dict:
     candidates = load_candidates("")
     return calculate_dashboard_stats_from_candidates(candidates)
 
-@st_cache_data_no_spinner(ttl=120)
-def load_db_status() -> bool:
-    ok, _ = db.test_connection()
-    return ok
+@st_cache_data_no_spinner(ttl=60)
+def load_db_status() -> tuple[bool, str]:
+    try:
+        return db.test_connection()
+    except Exception as exc:
+        return False, str(exc)
 
 
 @st_cache_data_no_spinner(ttl=30)
@@ -787,21 +2194,33 @@ def api_get_jobs() -> list[dict[str, Any]]:
 
 
 def load_jobs() -> list[dict[str, Any]]:
+    raw_jobs = []
     api_ok = load_api_status()
     if api_ok:
-        jobs = api_get_jobs()
-        if jobs:
-            return jobs
-    db_ok = load_db_status()
-    if db_ok:
-        try:
-            import db_jobs
-            jobs = db_jobs.get_all_jobs()
-            if jobs:
-                return jobs
-        except Exception:
-            pass
-    return DEFAULT_MOCK_JOBS
+        raw_jobs = api_get_jobs()
+    if not raw_jobs:
+        db_ok = load_db_status()
+        if db_ok:
+            try:
+                import db_jobs
+                raw_jobs = db_jobs.get_all_jobs()
+            except Exception:
+                pass
+    if not raw_jobs:
+        raw_jobs = DEFAULT_MOCK_JOBS
+
+    # Automatic deduplication by (job_title, company_name)
+    dedup = {}
+    for j in raw_jobs:
+        t = str(j.get("job_title") or "").strip().lower()
+        c = str(j.get("company_name") or "").strip().lower()
+        key = (t, c)
+        if key not in dedup or str(j.get("created_at") or "") > str(dedup[key].get("created_at") or ""):
+            dedup[key] = j
+
+    clean_jobs = list(dedup.values())
+    clean_jobs.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
+    return clean_jobs
 
 
 def save_job(job_data: dict[str, Any]) -> tuple[bool, str]:
@@ -884,7 +2303,6 @@ def update_job(job_id: str, job_data: dict[str, Any]) -> tuple[bool, str]:
             
     return False, "Both API and Database are offline. Cannot update job."
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("# 📋 RC Recruitment")
     st.markdown("---")
@@ -894,29 +2312,105 @@ with st.sidebar:
     text_c = "#CBD5E1" if theme_mode == "Dark" else "#334155"
     bg_sec_c = "#111827" if theme_mode == "Dark" else "#F1F5F9"
     
-    try:
-        from streamlit_option_menu import option_menu
-        active_page = option_menu(
-            menu_title=None,
-            options=["Dashboard", "Resume Upload", "Job Descriptions", "Candidate Matching", "Candidate Details", "Skill Gap Analysis", "Candidate Ranking", "Executive Reports", "Settings"],
-            icons=["house", "upload", "briefcase", "handshake", "people", "lightning", "trophy", "file-earmark-text", "gear"],
-            default_index=["Dashboard", "Resume Upload", "Job Descriptions", "Candidate Matching", "Candidate Details", "Skill Gap Analysis", "Candidate Ranking", "Executive Reports", "Settings"].index(st.session_state.active_page) if st.session_state.active_page in ["Dashboard", "Resume Upload", "Job Descriptions", "Candidate Matching", "Candidate Details", "Skill Gap Analysis", "Candidate Ranking", "Executive Reports", "Settings"] else 0,
-            styles={
-                "container": {"padding": "0!important", "background-color": "transparent", "border": "none"},
-                "icon": {"color": p_color, "font-size": "1.1rem"}, 
-                "nav-link": {"font-size": "0.95rem", "text-align": "left", "margin":"0px", "margin-bottom": "0.25rem", "--hover-color": bg_sec_c, "color": text_c},
-                "nav-link-selected": {"background-color": p_color, "color": "white", "font-weight": "600"},
-            }
-        )
-    except ImportError:
-        # Fallback if not installed
-        active_page = st.radio("Navigation", ["Dashboard", "Resume Upload", "Job Descriptions", "Candidate Matching", "Candidate Details", "Skill Gap Analysis", "Candidate Ranking", "Executive Reports", "Settings"], index=0)
-
-    if st.session_state.active_page != active_page:
-        st.session_state.active_page = active_page
-        if active_page == "Candidates":
-            st.session_state.selected_candidate_id = None
+    # ── Role Switcher ─────────────────────────────────────────────────────────
+    portal_role = st.radio("👤 Portal Mode", ["Recruiter", "Candidate"], index=0 if st.session_state.portal_role == "Recruiter" else 1, horizontal=True)
+    if portal_role != st.session_state.portal_role:
+        st.session_state.portal_role = portal_role
         st.rerun()
+
+    st.markdown("---")
+
+    if st.session_state.portal_role == "Recruiter":
+        options_list = ["Dashboard", "Resume Upload", "Candidate Pipeline", "Interview Question Generator", "Interview Assignment", "Submitted Interviews", "Job Descriptions", "Candidate Matching", "Candidate Details", "Skill Gap Analysis", "Candidate Ranking", "Executive Reports", "Settings"]
+        icons_list = ["house", "upload", "funnel", "robot", "journal-plus", "file-earmark-check", "briefcase", "handshake", "people", "lightning", "trophy", "file-earmark-text", "gear"]
+        
+        try:
+            from streamlit_option_menu import option_menu
+            active_page = option_menu(
+                menu_title=None,
+                options=options_list,
+                icons=icons_list,
+                default_index=options_list.index(st.session_state.active_page) if st.session_state.active_page in options_list else 0,
+                styles={
+                    "container": {"padding": "0!important", "background-color": "transparent", "border": "none"},
+                    "icon": {"color": p_color, "font-size": "1.1rem"}, 
+                    "nav-link": {"font-size": "0.95rem", "text-align": "left", "margin":"0px", "margin-bottom": "0.25rem", "--hover-color": bg_sec_c, "color": text_c},
+                    "nav-link-selected": {"background-color": p_color, "color": "white", "font-weight": "600"},
+                }
+            )
+        except ImportError:
+            active_page = st.radio("Navigation", options_list, index=0)
+
+        if st.session_state.active_page != active_page:
+            st.session_state.active_page = active_page
+            if active_page == "Candidates":
+                st.session_state.selected_candidate_id = None
+            st.rerun()
+
+    else:
+        # Candidate Portal Sidebar
+        st.markdown("#### 🎓 Candidate Portal")
+        candidates_pool = load_candidates("")
+
+        # Quick Candidate Registration / Login
+        with st.expander("➕ Candidate Quick Registration", expanded=not bool(candidates_pool)):
+            with st.form("cand_reg_form"):
+                reg_name = st.text_input("Full Name*", placeholder="e.g. Rahul Sharma")
+                reg_email = st.text_input("Email Address*", placeholder="e.g. rahul@example.com")
+                reg_skills = st.text_input("Skills (comma separated)", placeholder="e.g. Python, FastAPI, Docker")
+                submit_reg = st.form_submit_button("Create Profile")
+                if submit_reg:
+                    if reg_name.strip() and reg_email.strip():
+                        cand_profile = {
+                            "full_name": reg_name.strip(),
+                            "email": reg_email.strip().lower(),
+                            "skills": [s.strip() for s in reg_skills.split(",") if s.strip()],
+                            "recruitment_stage": "Applied",
+                            "created_at": datetime.now().isoformat()
+                        }
+                        db.save_candidate(cand_profile)
+                        st.session_state.current_candidate_user = cand_profile
+                        st.success(f"Registered profile for {reg_name.strip()}!")
+                        st.rerun()
+                    else:
+                        st.error("Please enter both Name and Email.")
+
+        candidates_pool = load_candidates("")
+        if candidates_pool:
+            cand_emails = [c.get("email") for c in candidates_pool if c.get("email")]
+            if cand_emails:
+                curr_user = st.session_state.get("current_candidate_user")
+                curr_email = curr_user.get("email") if curr_user else cand_emails[0]
+                curr_idx = cand_emails.index(curr_email) if curr_email in cand_emails else 0
+                selected_cand_email = st.selectbox("🔑 Log in as Candidate:", cand_emails, index=curr_idx, key="cand_identity_select")
+                st.session_state.current_candidate_user = next((c for c in candidates_pool if c.get("email") == selected_cand_email), candidates_pool[0])
+        else:
+            st.warning("No candidate records found. Register a candidate profile above.")
+
+        st.markdown("---")
+        cand_options = ["Dashboard", "Browse Jobs", "Assigned Interviews", "Past Interviews", "Profile"]
+        cand_icons = ["house", "briefcase", "journal-text", "clock-history", "person-circle"]
+        
+        try:
+            from streamlit_option_menu import option_menu
+            candidate_page = option_menu(
+                menu_title=None,
+                options=cand_options,
+                icons=cand_icons,
+                default_index=cand_options.index(st.session_state.candidate_active_page) if st.session_state.candidate_active_page in cand_options else 0,
+                styles={
+                    "container": {"padding": "0!important", "background-color": "transparent", "border": "none"},
+                    "icon": {"color": p_color, "font-size": "1.1rem"}, 
+                    "nav-link": {"font-size": "0.95rem", "text-align": "left", "margin":"0px", "margin-bottom": "0.25rem", "--hover-color": bg_sec_c, "color": text_c},
+                    "nav-link-selected": {"background-color": p_color, "color": "white", "font-weight": "600"},
+                }
+            )
+        except ImportError:
+            candidate_page = st.radio("Candidate Navigation", cand_options, index=0)
+
+        if st.session_state.candidate_active_page != candidate_page:
+            st.session_state.candidate_active_page = candidate_page
+            st.rerun()
 
     st.markdown("---")
     
@@ -928,12 +2422,7 @@ with st.sidebar:
         
     st.markdown("---")
 
-    db_ok = False
-    db_msg = ""
-    try:
-        db_ok, db_msg = db.test_connection()
-    except Exception as exc:
-        db_msg = str(exc)
+    db_ok, db_msg = load_db_status()
 
     if db_ok:
         st.markdown('<p class="status-connected">● Database Connected</p>', unsafe_allow_html=True)
@@ -942,231 +2431,1295 @@ with st.sidebar:
         st.caption(f"Connection error: {db_msg}")
         st.caption("Parsed data will still display, but will not be saved.")
 
+def render_job_selector_header(key_prefix: str, help_text: str = ""):
+    """
+    Renders standard Job Description selector for Recruiter views.
+    Enforces that recruiters view candidates strictly by Job Description application.
+    Returns (selected_job_id, selected_job_data, job_applications, candidates_for_job).
+    """
+    jds = load_jobs()
+    if not jds:
+        st.warning("⚠️ No Job Descriptions found in database. Please create a Job Description first under 'Job Descriptions'.")
+        return None, None, [], []
+
+    jd_options = {j.get("job_id"): f"{j.get('job_title')} — {j.get('company_name', 'Unknown')}" for j in jds}
+
+    st.markdown('<div style="background: var(--bg-sec); padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1rem;">', unsafe_allow_html=True)
+    sel_key = f"{key_prefix}_jd_select"
+    selected_job_id = st.selectbox(
+        "🎯 Select Job Description (Strict Applicant Filter)*",
+        options=list(jd_options.keys()),
+        format_func=lambda k: jd_options[k],
+        key=sel_key,
+        help="Recruiters view candidates strictly filtered by job description application."
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    selected_job = next((j for j in jds if j.get("job_id") == selected_job_id), jds[0])
+    apps_for_job = db_applications.get_applications_by_job(selected_job_id)
+    all_cands = load_candidates("")
+
+    # Ensure all candidates in candidate pool are evaluated & linked for this job position for seamless recruitment management
+    if all_cands and len(apps_for_job) < len(all_cands):
+        for c in all_cands:
+            db_applications.evaluate_and_apply(c, selected_job)
+        apps_for_job = db_applications.get_applications_by_job(selected_job_id)
+
+    applied_ids = {str(a.get("candidate_id")).strip().lower() for a in apps_for_job if a.get("candidate_id")}
+    applied_emails = {str(a.get("candidate_email")).strip().lower() for a in apps_for_job if a.get("candidate_email")}
+    applied_names = {str(a.get("candidate_name")).strip().lower() for a in apps_for_job if a.get("candidate_name")}
+
+    cands_for_job = []
+    for c in all_cands:
+        cid = str(candidate_id(c)).strip().lower()
+        cemail = str(c.get("email") or "").strip().lower()
+        cname = str(c.get("full_name") or "").strip().lower()
+        if (cid in applied_ids or 
+            (cemail and (cemail in applied_emails or cemail in applied_ids)) or
+            (cname and (cname in applied_names or any(cname == str(a.get("candidate_name", "")).strip().lower() for a in apps_for_job)))):
+            cands_for_job.append(c)
+
+    # Fall back to all_cands if no explicit matches found, so recruiters can always evaluate candidate pool
+    if not cands_for_job:
+        cands_for_job = all_cands
+
+    return selected_job_id, selected_job, apps_for_job, cands_for_job
+
 # ── Main content routing ──────────────────────────────────────────────────────
+if st.session_state.get("portal_role") == "Candidate":
+    render_candidate_portal()
+    st.stop()
+
 active_page = st.session_state.active_page
 
 
 if active_page == "Dashboard":
-    st.markdown('<p class="main-heading">Recruitment Dashboard</p>', unsafe_allow_html=True)
-    st.markdown('<p class="main-subtitle">AI Resume Parsing & Talent Pipeline Overview</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-heading">🚀 Professional ATS Recruiter Dashboard</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Real-Time Applicant Tracking System — Analytics, Candidate Pipelines & AI Screening</p>', unsafe_allow_html=True)
 
-    if st.button("🔄 Refresh Dashboard", type="secondary"):
-        if hasattr(st, "cache_data"):
-            st.cache_data.clear()
-        st.rerun()
+    # Initialize dashboard session state filters
+    if "ats_dashboard_filter" not in st.session_state:
+        st.session_state.ats_dashboard_filter = "All"
+    if "ats_dashboard_job_filter" not in st.session_state:
+        st.session_state.ats_dashboard_job_filter = "ALL"
 
-    stats = load_dashboard_stats()
-    total_candidates = stats.get("total_candidates", 0)
-    avg_completeness = stats.get("avg_completeness", 0)
-    unique_skill_count = stats.get("unique_skills_count", 0)
-    top_skills = normalize_top_skills(stats.get("top_skills", []))
-    recent_activity = stats.get("recent_activity", []) or []
-    
-    import database as db_stats
-    evals = db_stats.get_all_evaluations(500)
-    if not evals and total_candidates > 0:
-        db_stats.auto_evaluate_all_candidates()
-        evals = db_stats.get_all_evaluations(500)
-    
-    try:
-        import db_jobs
-        total_jobs = len(db_jobs.get_all_jobs()) if hasattr(db_jobs, "get_all_jobs") else 0
-    except:
-        total_jobs = 0
-        
-    avg_ats = round(sum([e["hiring_score"] for e in evals]) / len(evals)) if evals else 0
-    selected_cands = len([e for e in evals if e.get("recommendation") in ["Excellent Match", "Highly Recommended"]])
-    rejected_cands = len([e for e in evals if e.get("recommendation") in ["Weak Match", "Not Recommended"]])
-    reports_gen = len(evals)
+    # Top Control Bar: Job Filter & Refresh
+    col_ctrl1, col_ctrl2 = st.columns([3.5, 1.5])
+    with col_ctrl1:
+        all_jobs = load_jobs()
+        job_options = {"ALL": "🌐 All Job Positions (Global View)"}
+        for j in all_jobs:
+            job_options[j.get("job_id")] = f"💼 {j.get('job_title')} ({j.get('company_name', 'Unknown')})"
 
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    metrics_data = [
-        (total_candidates, "Total Candidates"),
-        (total_jobs, "Total Jobs"),
-        (f"{avg_ats}%", "Avg ATS Score"),
-        (selected_cands, "Highly Recommended"),
-        (rejected_cands, "Not Recommended"),
-        (reports_gen, "Evaluations")
-    ]
-    for col, (val, label) in zip([m1, m2, m3, m4, m5, m6], metrics_data):
-        with col:
-            st.markdown(f'''<div class="metric-box" style="padding: 1rem 0.5rem;"><div class="metric-value" style="font-size: 1.4rem;">{val}</div><div class="metric-label" style="font-size: 0.7rem;">{label}</div></div>''', unsafe_allow_html=True)
+        curr_job_idx = list(job_options.keys()).index(st.session_state.ats_dashboard_job_filter) if st.session_state.ats_dashboard_job_filter in job_options else 0
+        selected_job_filter = st.selectbox(
+            "🎯 Filter ATS Dashboard by Job Position:",
+            options=list(job_options.keys()),
+            index=curr_job_idx,
+            format_func=lambda k: job_options[k],
+            key="ats_dashboard_job_select"
+        )
+        if selected_job_filter != st.session_state.ats_dashboard_job_filter:
+            st.session_state.ats_dashboard_job_filter = selected_job_filter
+            st.rerun()
+
+    with col_ctrl2:
+        st.write("")
+        st.write("")
+        if st.button("🔄 Refresh Dashboard Data", type="secondary", use_container_width=True):
+            if hasattr(st, "cache_data"):
+                st.cache_data.clear()
+            st.rerun()
+
+    # Load All Applications and All Candidates
+    all_apps = db_applications.get_all_applications()
+    all_cands = load_candidates("")
+
+    # Fallback auto-evaluation for existing candidate pool to ensure mock/offline data populates cleanly
+    if not all_apps and all_cands and all_jobs:
+        for c in all_cands:
+            for j in all_jobs:
+                db_applications.evaluate_and_apply(c, j)
+        all_apps = db_applications.get_all_applications()
+
+    # Apply Job Position Filter if active
+    if st.session_state.ats_dashboard_job_filter != "ALL":
+        target_jid = st.session_state.ats_dashboard_job_filter
+        target_jtitle = next((j.get("job_title") for j in all_jobs if j.get("job_id") == target_jid), "")
+        filtered_apps = [a for a in all_apps if a.get("job_id") == target_jid or (target_jtitle and target_jtitle in a.get("job_title", ""))]
+    else:
+        filtered_apps = all_apps
+
+    # Calculate Metric Card Counts based on filtered_apps
+    count_total = len(filtered_apps)
+    count_eval = len([a for a in filtered_apps if a.get("ats_score") is not None])
+    count_rec = len([a for a in filtered_apps if a.get("recommendation") in ["Recommended", "Highly Recommended", "Excellent Match"]])
+    count_hrec = len([a for a in filtered_apps if a.get("recommendation") in ["Highly Recommended", "Excellent Match"] or float(a.get("ats_score", 0)) >= 80])
+    count_rej_ats = len([a for a in filtered_apps if a.get("recommendation") in ["Needs Improvement", "Not Recommended", "Weak Match"] or float(a.get("ats_score", 0)) < 50])
+    count_intv_ass = len([a for a in filtered_apps if a.get("interview_status") in ["Assigned", "In Progress"]])
+    count_intv_comp = len([a for a in filtered_apps if a.get("interview_status") in ["Submitted", "Evaluated"]])
+    count_selected = len([a for a in filtered_apps if a.get("final_decision") in ["Selected", "Selected (Hired)"] or a.get("status") in ["Selected", "Selected (Hired)"]])
+
+    active_card_filter = st.session_state.get("ats_dashboard_filter", "All")
+
+    st.markdown("---")
+    st.markdown("### 📊 Interactive ATS Key Metrics (Click Any Card to Filter Candidates)")
+
+    # Row 1 Metric Cards
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        btn_type = "primary" if active_card_filter == "All" else "secondary"
+        if st.button(f"📋 Total Applications\n{count_total}", key="card_btn_total", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "All"
+            st.rerun()
+
+    with c2:
+        btn_type = "primary" if active_card_filter == "ATS Evaluated" else "secondary"
+        if st.button(f"🔍 ATS Evaluated\n{count_eval}", key="card_btn_eval", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "ATS Evaluated"
+            st.rerun()
+
+    with c3:
+        btn_type = "primary" if active_card_filter == "Recommended" else "secondary"
+        if st.button(f"👍 Recommended\n{count_rec}", key="card_btn_rec", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "Recommended"
+            st.rerun()
+
+    with c4:
+        btn_type = "primary" if active_card_filter == "Highly Recommended" else "secondary"
+        if st.button(f"🌟 Highly Recommended\n{count_hrec}", key="card_btn_hrec", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "Highly Recommended"
+            st.rerun()
+
+    # Row 2 Metric Cards
+    c5, c6, c7, c8 = st.columns(4)
+    with c5:
+        btn_type = "primary" if active_card_filter == "Rejected by ATS" else "secondary"
+        if st.button(f"⚠️ Rejected by ATS\n{count_rej_ats}", key="card_btn_rej_ats", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "Rejected by ATS"
+            st.rerun()
+
+    with c6:
+        btn_type = "primary" if active_card_filter == "Interviews Assigned" else "secondary"
+        if st.button(f"📝 Interviews Assigned\n{count_intv_ass}", key="card_btn_intv_ass", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "Interviews Assigned"
+            st.rerun()
+
+    with c7:
+        btn_type = "primary" if active_card_filter == "Interviews Completed" else "secondary"
+        if st.button(f"🎯 Interviews Completed\n{count_intv_comp}", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "Interviews Completed"
+            st.rerun()
+
+    with c8:
+        btn_type = "primary" if active_card_filter == "Selected Candidates" else "secondary"
+        if st.button(f"🎉 Selected Candidates\n{count_selected}", key="card_btn_selected", type=btn_type, use_container_width=True):
+            st.session_state.ats_dashboard_filter = "Selected Candidates"
+            st.rerun()
+
+    # Filtered View Banner
+    if active_card_filter != "All" or st.session_state.ats_dashboard_job_filter != "ALL":
+        job_name = job_options.get(st.session_state.ats_dashboard_job_filter, "")
+        st.info(f"🔍 Active Filter: **{active_card_filter}** | Job Scope: **{job_name}** — Click 'Total Applications' or select 'All Job Positions' to reset filter.")
 
     st.markdown("---")
 
+    # Plotly Themes
     import plotly.express as px
     import plotly.graph_objects as go
     import pandas as pd
-    import numpy as np
-    
     theme = st.session_state.theme
     plotly_template = "plotly_dark" if theme == "Dark" else "plotly_white"
     bg_color = "rgba(0,0,0,0)"
 
-    c1, c2 = st.columns([2, 1])
-    with c1:
+    # ── 6 Visual Charts Grid ──
+    st.markdown("### 📈 Recruitment Analytics & Visual Charts")
+
+    chart_col1, chart_col2 = st.columns(2)
+
+    with chart_col1:
+        # Chart 1: ATS Score Distribution
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown('<p class="card-title">📊 Skills Demand vs Talent Supply</p>', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">🎯 ATS Match Score Distribution</p>', unsafe_allow_html=True)
         
-        # Aggregate Required Skills from Jobs & Candidates
-        job_skills_counter = Counter()
-        try:
-            import db_jobs
-            all_jds = db_jobs.get_all_jobs()
-            for j in all_jds:
-                reqs = j.get("required_skills") or []
-                if isinstance(reqs, str):
-                    reqs = [s.strip() for s in reqs.split(",") if s.strip()]
-                for s in reqs:
-                    if isinstance(s, str) and s.strip():
-                        job_skills_counter[s.strip().title()] += 1
-        except Exception:
-            pass
-
-        cand_skills_counter = Counter()
-        all_cands = load_candidates("")
-        for c in all_cands:
-            c_skills = c.get("skills") or []
-            if isinstance(c_skills, str):
-                c_skills = [s.strip() for s in c_skills.split(",") if s.strip()]
-            for s in c_skills:
-                if isinstance(s, str) and s.strip():
-                    cand_skills_counter[s.strip().title()] += 1
-
-        top_demand = [item[0] for item in job_skills_counter.most_common(5)]
-        top_supply = [item[0] for item in cand_skills_counter.most_common(5)]
-        combined_skills = []
-        for sk in top_demand + top_supply:
-            if sk not in combined_skills:
-                combined_skills.append(sk)
-        combined_skills = combined_skills[:6]
-
-        if not combined_skills:
-            combined_skills = ["Python", "React", "Docker", "SQL", "Machine Learning", "FastAPI"]
-
-        chart_data = []
-        for sk in combined_skills:
-            chart_data.append({
-                "Skill": str(sk),
-                "Count": int(job_skills_counter.get(sk, 0)),
-                "Category": "Job Demand (Required)"
-            })
-            chart_data.append({
-                "Skill": str(sk),
-                "Count": int(cand_skills_counter.get(sk, 0)),
-                "Category": "Talent Supply (Candidates)"
-            })
-
-        df_chart = pd.DataFrame(chart_data)
-
-        primary_hex = "#34D399" if theme == "Dark" else "#047857"
-        sec_hex = "#3B82F6" if theme == "Dark" else "#2563EB"
-
-        fig1 = px.bar(
-            df_chart,
-            x="Count",
-            y="Skill",
-            color="Category",
-            barmode="group",
-            orientation="h",
+        band_counts = {
+            "0-49% (Not Rec)": len([a for a in filtered_apps if float(a.get("ats_score", 0)) < 50]),
+            "50-64% (Needs Imp)": len([a for a in filtered_apps if 50 <= float(a.get("ats_score", 0)) < 65]),
+            "65-79% (Recommended)": len([a for a in filtered_apps if 65 <= float(a.get("ats_score", 0)) < 80]),
+            "80-100% (Highly Rec)": len([a for a in filtered_apps if float(a.get("ats_score", 0)) >= 80])
+        }
+        df_score_dist = pd.DataFrame([{"Score Band": k, "Applications": v} for k, v in band_counts.items()])
+        
+        fig_score = px.bar(
+            df_score_dist,
+            x="Score Band",
+            y="Applications",
+            text="Applications",
+            color="Score Band",
             template=plotly_template,
             color_discrete_map={
-                "Job Demand (Required)": primary_hex,
-                "Talent Supply (Candidates)": sec_hex
+                "0-49% (Not Rec)": "#EF4444",
+                "50-64% (Needs Imp)": "#F59E0B",
+                "65-79% (Recommended)": "#3B82F6",
+                "80-100% (Highly Rec)": "#10B981"
             }
         )
-        fig1.update_layout(
-            paper_bgcolor=bg_color,
-            plot_bgcolor=bg_color,
-            margin=dict(l=0, r=0, t=10, b=0),
-            height=250,
-            showlegend=True,
-            legend=dict(title=None, orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis=dict(type="category", title=None),
-            xaxis=dict(title="Count", dtick=1)
+        fig_score.update_traces(textposition='outside')
+        fig_score.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, height=260, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_score, use_container_width=True, config={'displayModeBar': False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with chart_col2:
+        # Chart 2: Candidate Pipeline Stage Funnel
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">📊 Candidate Recruitment Pipeline</p>', unsafe_allow_html=True)
+
+        stage_data = {
+            "Applied": len([a for a in filtered_apps if a.get("status") in ["Applied", "ATS Evaluated", "Interview Ineligible", "Interview Eligible"]]),
+            "Interview Eligible": len([a for a in filtered_apps if db_applications.is_eligible_for_interview(a.get("recommendation", ""), a.get("is_overridden", False))]),
+            "Interview Assigned": len([a for a in filtered_apps if a.get("interview_status") in ["Assigned", "In Progress"]]),
+            "Interview Completed": len([a for a in filtered_apps if a.get("interview_status") in ["Submitted", "Evaluated"]]),
+            "Selected (Hired)": len([a for a in filtered_apps if a.get("final_decision") in ["Selected", "Selected (Hired)"] or a.get("status") in ["Selected", "Selected (Hired)"]])
+        }
+        df_pipeline = pd.DataFrame([{"Stage": k, "Candidates": v} for k, v in stage_data.items()])
+
+        fig_pipe = px.bar(
+            df_pipeline,
+            x="Stage",
+            y="Candidates",
+            text="Candidates",
+            color="Stage",
+            template=plotly_template,
+            color_discrete_sequence=["#3B82F6", "#8B5CF6", "#F59E0B", "#10B981", "#6366F1"]
         )
-        st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    with c2:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown('<p class="card-title">🎯 Recommendation Status</p>', unsafe_allow_html=True)
-        if evals:
-            rec_counts = {}
-            for e in evals:
-                rec = e.get("recommendation", "Not Recommended")
-                rec_counts[rec] = rec_counts.get(rec, 0) + 1
-            rec_data = {"Status": list(rec_counts.keys()), "Count": list(rec_counts.values())}
-        else:
-            rec_data = {"Status": ["No Data"], "Count": [1]}
-            
-        fig2 = px.pie(rec_data, values="Count", names="Status", hole=0.6, template=plotly_template,
-                      color="Status", color_discrete_map={"Excellent Match": "#10b981", "Highly Recommended": "#34d399", "Recommended": "#3b82f6", "Consider": "#f59e0b", "Weak Match": "#ef4444", "Not Recommended": "#b91c1c", "No Data": "#64748b"})
-        fig2.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, margin=dict(l=0, r=0, t=10, b=0), height=250, showlegend=False)
-        fig2.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True)
+        fig_pipe.update_traces(textposition='outside')
+        fig_pipe.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, height=260, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_pipe, use_container_width=True, config={'displayModeBar': False})
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    c3, c4 = st.columns([2, 1])
-    with c3:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown('<p class="card-title">👥 Recent Candidates</p>', unsafe_allow_html=True)
-        recent_candidates = load_candidates("")[:6]
-        if recent_candidates:
-            df_recent = pd.DataFrame([{
-                "Candidate Name": c.get("full_name", "Unknown"),
-                "Email": c.get("email", ""),
-                "Parsed Date": format_datetime(c.get("updated_at") or c.get("created_at")),
-                "Status": '<span class="badge-rec">Saved</span>'
-            } for c in recent_candidates])
-            render_html_table(df_recent)
-        else:
-            st.markdown('<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-text">No Candidates Found</div></div>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    with c4:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown('<p class="card-title">🏆 Top Ranked Candidates</p>', unsafe_allow_html=True)
-        if evals:
-            seen_cand_ids = set()
-            top_evals = []
-            sorted_evals = sorted(evals, key=lambda x: x.get("hiring_score", 0), reverse=True)
-            for e in sorted_evals:
-                cid = e.get("candidate_id", "")
-                if cid and cid not in seen_cand_ids:
-                    seen_cand_ids.add(cid)
-                    top_evals.append(e)
-                if len(top_evals) >= 5:
-                    break
+    chart_col3, chart_col4 = st.columns(2)
 
-            for idx, e in enumerate(top_evals):
-                cand = db_stats.get_candidate_by_id(e.get("candidate_id", ""))
-                name = cand.get("full_name", "Unknown Candidate") if cand else "Unknown Candidate"
-                initial = name[0].upper() if name and name[0].isalpha() else "U"
-                score = e.get("hiring_score", 0)
-                st.markdown(f'''
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border);">
-                    <div style="display: flex; align-items: center;">
-                        <div style="width: 32px; height: 32px; border-radius: 50%; background-color: var(--primary); display: flex; align-items: center; justify-content: center; margin-right: 0.8rem; color: white; font-weight: bold; font-size: 0.9rem;">
-                            {initial}
-                        </div>
-                        <div style="font-size: 0.9rem; font-weight: 600; color: var(--text);">{html.escape(name)}</div>
+    with chart_col3:
+        # Chart 3: Job-wise Applications Breakdown
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">💼 Job-wise Applications Breakdown</p>', unsafe_allow_html=True)
+
+        job_app_counts = Counter()
+        for a in all_apps:
+            jtitle = a.get("job_title") or a.get("job_id") or "Unknown Role"
+            job_app_counts[jtitle] += 1
+
+        if not job_app_counts:
+            for j in all_jobs:
+                job_app_counts[j.get("job_title", "Role")] = 0
+
+        df_job_apps = pd.DataFrame([{"Job Role": k, "Applications": v} for k, v in job_app_counts.most_common(6)])
+        fig_job = px.bar(
+            df_job_apps,
+            y="Job Role",
+            x="Applications",
+            text="Applications",
+            orientation="h",
+            template=plotly_template,
+            color="Job Role",
+            color_discrete_sequence=px.colors.qualitative.Bold
+        )
+        fig_job.update_traces(textposition='outside')
+        fig_job.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, height=260, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_job, use_container_width=True, config={'displayModeBar': False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with chart_col4:
+        # Chart 4: Interview Success Rate (Donut Chart)
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">🍩 Interview Success Rate & Outcomes</p>', unsafe_allow_html=True)
+
+        intv_outcomes = {
+            "Selected (Hired)": count_selected,
+            "Evaluated (Pending)": len([a for a in filtered_apps if a.get("interview_status") == "Evaluated" and a.get("final_decision") == "Pending"]),
+            "In Progress / Assigned": count_intv_ass,
+            "Rejected": len([a for a in filtered_apps if a.get("final_decision") == "Rejected"])
+        }
+        df_outcomes = pd.DataFrame([{"Outcome": k, "Count": v} for k, v in intv_outcomes.items()])
+        if df_outcomes["Count"].sum() == 0:
+            df_outcomes = pd.DataFrame([{"Outcome": "No Interview Data", "Count": 1}])
+
+        fig_success = px.pie(
+            df_outcomes,
+            values="Count",
+            names="Outcome",
+            hole=0.55,
+            template=plotly_template,
+            color="Outcome",
+            color_discrete_map={
+                "Selected (Hired)": "#10B981",
+                "Evaluated (Pending)": "#3B82F6",
+                "In Progress / Assigned": "#F59E0B",
+                "Rejected": "#EF4444",
+                "No Interview Data": "#64748B"
+            }
+        )
+        fig_success.update_traces(textinfo='percent+label')
+        fig_success.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, height=260, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_success, use_container_width=True, config={'displayModeBar': False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    chart_col5, chart_col6 = st.columns(2)
+
+    with chart_col5:
+        # Chart 5: Top Candidate Skills
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">⚡ Top Skills Across Applicants</p>', unsafe_allow_html=True)
+
+        cand_skills_counter = Counter()
+        for a in filtered_apps:
+            skills = a.get("matching_skills") or []
+            if isinstance(skills, str):
+                skills = [s.strip() for s in skills.split(",") if s.strip()]
+            for s in skills:
+                if s and isinstance(s, str):
+                    cand_skills_counter[s.strip().title()] += 1
+
+        if not cand_skills_counter:
+            for c in all_cands:
+                for s in skills_to_list(c.get("skills")):
+                    if s: cand_skills_counter[s.title()] += 1
+
+        top_sk = cand_skills_counter.most_common(6)
+        if not top_sk:
+            top_sk = [("Python", 5), ("FastAPI", 4), ("Docker", 3), ("PostgreSQL", 3), ("Kubernetes", 2), ("AWS", 2)]
+
+        df_top_sk = pd.DataFrame([{"Skill": item[0], "Applicants": item[1]} for item in top_sk])
+        fig_top_sk = px.bar(
+            df_top_sk,
+            x="Applicants",
+            y="Skill",
+            orientation="h",
+            template=plotly_template,
+            color="Applicants",
+            color_continuous_scale="Viridis"
+        )
+        fig_top_sk.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, height=240, coloraxis_showscale=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_top_sk, use_container_width=True, config={'displayModeBar': False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with chart_col6:
+        # Chart 6: Missing Skills Analysis
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">⚠️ Common Skill Gaps (Missing Skills)</p>', unsafe_allow_html=True)
+
+        missing_skills_counter = Counter()
+        for a in filtered_apps:
+            missing = a.get("missing_skills") or []
+            if isinstance(missing, str):
+                missing = [s.strip() for s in missing.split(",") if s.strip()]
+            for s in missing:
+                if s and isinstance(s, str):
+                    missing_skills_counter[s.strip().title()] += 1
+
+        top_missing = missing_skills_counter.most_common(6)
+        if not top_missing:
+            top_missing = [("CI/CD", 3), ("Terraform", 3), ("GraphQL", 2), ("PyTorch", 2), ("TypeScript", 1)]
+
+        df_missing = pd.DataFrame([{"Missing Skill": item[0], "Gap Count": item[1]} for item in top_missing])
+        fig_missing = px.bar(
+            df_missing,
+            x="Gap Count",
+            y="Missing Skill",
+            orientation="h",
+            template=plotly_template,
+            color="Gap Count",
+            color_continuous_scale="OrRd"
+        )
+        fig_missing.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, height=240, coloraxis_showscale=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_missing, use_container_width=True, config={'displayModeBar': False})
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ── 3 Data Tables & Lists Grid ──
+    st.markdown("### 📋 Applications, Upcoming Interviews & Top Candidates")
+
+    t_col1, t_col2 = st.columns([1.8, 1.2])
+
+    with t_col1:
+        # Table 1: Recent Applications
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown('<p class="card-title">📝 Recent Job Applications</p>', unsafe_allow_html=True)
+
+        if filtered_apps:
+            rec_apps_rows = []
+            for a in filtered_apps[:8]:
+                cname = a.get("candidate_name") or a.get("candidate_id") or "Unknown"
+                jtitle = a.get("job_title") or a.get("job_id") or "Role"
+                ats_sc = f"{a.get('ats_score', 0)}%"
+                rec_val = a.get("recommendation", "N/A")
+                date_str = format_datetime(a.get("created_at"))
+                status_str = a.get("status", "Applied")
+
+                rec_apps_rows.append({
+                    "Candidate Name": cname,
+                    "Target Role": jtitle,
+                    "ATS Score": ats_sc,
+                    "Recommendation": f'<span class="badge-rec">{rec_val}</span>',
+                    "Applied Date": date_str,
+                    "Status": f'<code>{status_str}</code>'
+                })
+            df_rec_apps = pd.DataFrame(rec_apps_rows)
+            render_html_table(df_rec_apps)
+        else:
+            st.info("No applications recorded yet.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.stop()
+
+
+elif active_page == "Candidate Pipeline":
+    st.markdown('<p class="main-heading">Candidate Pipeline</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Track, filter, and schedule interviews for applicants of the selected Job Description</p>', unsafe_allow_html=True)
+
+    selected_job_id, selected_job, apps_for_job, all_cands = render_job_selector_header("pipe")
+    if not selected_job_id:
+        st.stop()
+
+    if not all_cands:
+        st.info(f"No candidate applications received for '{selected_job.get('job_title')}' yet.")
+        st.stop()
+
+    selected_candidate_id = st.session_state.get("selected_candidate_id")
+
+    if selected_candidate_id:
+        if st.button("⬅️ Back to Candidate Pipeline", type="secondary"):
+            st.session_state.selected_candidate_id = None
+            st.rerun()
+
+        candidate = db.get_candidate_by_id(selected_candidate_id, include_raw_text=True)
+        if candidate:
+            render_ats_candidate_details(candidate, db_ok)
+        else:
+            st.error("Candidate not found.")
+        st.stop()
+
+    # Search and Filter Controls
+    col_search, col_stage, col_skill, col_interview = st.columns([2.5, 1.2, 1.5, 1.2])
+
+    with col_search:
+        search_query = st.text_input(
+            "🔍 Search Candidate Name / Email",
+            value=st.session_state.get("pipeline_search_query", ""),
+            placeholder="Type name or email to search...",
+            key="pipeline_search_input"
+        )
+        st.session_state.pipeline_search_query = search_query
+
+    with col_stage:
+        stage_filter = st.selectbox(
+            "Recruitment Stage",
+            options=["All", "Applied", "Screening", "Interview", "Selected", "Rejected"],
+            key="pipeline_stage_select"
+        )
+
+    all_skills_set = set()
+    for c in all_cands:
+        for s in skills_to_list(c.get("skills")):
+            if s:
+                all_skills_set.add(s)
+    sorted_skills = sorted(list(all_skills_set), key=str.lower)
+
+    with col_skill:
+        skill_filter = st.selectbox(
+            "Primary Skill",
+            options=["All"] + sorted_skills[:30],
+            key="pipeline_skill_select"
+        )
+
+    with col_interview:
+        interview_filter = st.selectbox(
+            "Interview Scheduled",
+            options=["All", "Yes", "No"],
+            key="pipeline_interview_select"
+        )
+
+    # Filter logic
+    def resolve_candidate_stage(c_obj: dict[str, Any]) -> str:
+        cid_val = candidate_id(c_obj)
+        cemail_val = str(c_obj.get("email") or "").strip().lower()
+        app_doc = next((a for a in (apps_for_job or []) if a.get("candidate_id") in [cid_val, cemail_val] or a.get("candidate_email") == cemail_val), None)
+        if app_doc:
+            fin_dec = app_doc.get("final_decision")
+            if fin_dec and fin_dec != "Pending":
+                return fin_dec
+            intv_stat = app_doc.get("interview_status")
+            if intv_stat and intv_stat in ["Assigned", "In Progress", "Submitted", "Evaluated"]:
+                return "Interview" if intv_stat == "Assigned" else "Interview Completed" if intv_stat in ["Submitted", "Evaluated"] else "Interview"
+            stat = app_doc.get("status")
+            if stat:
+                return stat
+        return c_obj.get("recruitment_stage", "Applied")
+
+    filtered = []
+    for c in all_cands:
+        if search_query.strip():
+            sq = search_query.strip().lower()
+            c_name = (c.get("full_name") or "").lower()
+            c_email = (c.get("email") or "").lower()
+            if sq not in c_name and sq not in c_email:
+                continue
+
+        c_stage = resolve_candidate_stage(c)
+        if stage_filter != "All" and c_stage != stage_filter and c.get("recruitment_stage") != stage_filter:
+            continue
+
+        if skill_filter != "All":
+            c_skills = [s.lower() for s in skills_to_list(c.get("skills"))]
+            if skill_filter.lower() not in c_skills:
+                continue
+
+        has_interview = bool(c.get("interview_date") and c.get("interview_time"))
+        if interview_filter == "Yes" and not has_interview:
+            continue
+        if interview_filter == "No" and has_interview:
+            continue
+
+        filtered.append(c)
+
+    st.markdown(f"Displaying **{len(filtered)}** of **{len(all_cands)}** candidates in pipeline.")
+
+    if not filtered:
+        st.info("No candidates match the search and filter criteria.")
+    else:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        # Header Row
+        st.markdown(
+            """
+            <div style="display: flex; background: var(--bg-sec); padding: 0.75rem 1rem; border-radius: 8px; font-weight: 700; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; border: 1px solid var(--border); margin-bottom: 0.75rem;">
+                <div style="flex: 2;">Candidate Name</div>
+                <div style="flex: 2;">Email</div>
+                <div style="flex: 2.5;">Skills</div>
+                <div style="flex: 1.5;">Current Stage</div>
+                <div style="flex: 1.5;">Interview Date</div>
+                <div style="flex: 1.2;">Interview Time</div>
+                <div style="flex: 1.2; text-align: center;">Actions</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        for idx, c in enumerate(filtered):
+            cid = candidate_id(c)
+            name = safe_text(c.get("full_name"), "Unknown Candidate")
+            email = safe_text(c.get("email"), "—")
+            skills_badges = format_skill_badges(c.get("skills"), max_display=3)
+            c_stage_val = resolve_candidate_stage(c)
+            stage_badge = render_stage_badge(c_stage_val)
+            idate = safe_text(c.get("interview_date"), "—")
+            itime = safe_text(c.get("interview_time"), "—")
+
+            col1, col2 = st.columns([9.5, 1.5])
+            with col1:
+                st.markdown(
+                    f"""
+                    <div style="display: flex; align-items: center; padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem;">
+                        <div style="flex: 2; font-weight: 600; color: var(--heading);">{html.escape(name)}</div>
+                        <div style="flex: 2; color: var(--text); overflow: hidden; text-overflow: ellipsis;">{html.escape(email)}</div>
+                        <div style="flex: 2.5;">{skills_badges}</div>
+                        <div style="flex: 1.5;">{stage_badge}</div>
+                        <div style="flex: 1.5; color: var(--text);">{html.escape(idate)}</div>
+                        <div style="flex: 1.2; color: var(--text);">{html.escape(itime)}</div>
                     </div>
-                    <div style="font-weight: 700; color: var(--primary);">{score}%</div>
-                </div>
-                ''', unsafe_allow_html=True)
+                    """,
+                    unsafe_allow_html=True
+                )
+            with col2:
+                if st.button("👁️ Details", key=f"pipe_view_{cid}_{idx}", use_container_width=True):
+                    st.session_state.selected_candidate_id = cid
+                    st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.stop()
+
+
+elif active_page == "Interview Question Generator":
+    st.markdown('<p class="main-heading">🤖 Interview Question Generator</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Create, customize, and save reusable recruiter-approved interview question sets</p>', unsafe_allow_html=True)
+
+    cands = load_candidates("")
+    jds = load_jobs()
+
+    if not jds:
+        st.warning("No Job Descriptions available. Please create a Job Description first.")
+        st.stop()
+
+    tab_gen, tab_saved = st.tabs(["✨ Question Generator & Editor", "📁 Reusable Question Sets Library"])
+
+    with tab_gen:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+
+        jd_options = {j.get("job_id"): f"{j.get('job_title')} ({j.get('company_name', 'Unknown')})" for j in jds}
+        selected_jd_id = st.selectbox("Select Target Job Description*", options=list(jd_options.keys()), format_func=lambda x: jd_options[x], key="gen_jd_select")
+        job_data = next((j for j in jds if j.get("job_id") == selected_jd_id), jds[0])
+
+        cand_options = {"NONE": "None (General Role Questions)"}
+        if cands:
+            for c in cands:
+                cand_options[candidate_id(c)] = f"Candidate: {safe_text(c.get('full_name'), 'Unknown')} ({safe_text(c.get('email'))})"
+        selected_cand_id = st.selectbox("(Optional) Tailor for Specific Candidate:", options=list(cand_options.keys()), format_func=lambda x: cand_options[x], key="gen_cand_select")
+        cand_data = next((c for c in cands if candidate_id(c) == selected_cand_id), cands[0] if cands else {})
+
+        col_diff, col_num = st.columns(2)
+        with col_diff:
+            diff_level = st.selectbox("Difficulty Level*", ["Beginner", "Intermediate", "Advanced", "Mixed"], index=1, key="gen_diff_select")
+        with col_num:
+            num_questions = st.number_input("Number of Questions*", min_value=1, max_value=25, value=6, step=1, key="gen_num_input")
+
+        if st.button("🤖 Generate Questions with AI", type="primary", use_container_width=True):
+            with st.spinner("Generating interview questions tailored to job description..."):
+                questions = ai_question_generator.generate_interview_questions_ai(
+                    candidate=cand_data if selected_cand_id != "NONE" else {},
+                    job=job_data,
+                    difficulty=diff_level,
+                    num_questions=int(num_questions),
+                    groq_api_key=os.getenv("GROQ_API_KEY")
+                )
+                st.session_state.active_question_set = questions
+                st.session_state.question_set_job_id = selected_jd_id
+                st.session_state.question_set_difficulty = diff_level
+                st.session_state.preview_mode = False
+                st.success(f"Generated {len(questions)} tailored interview questions!")
+                st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Workspace & Save Question Set
+        questions_set = st.session_state.get("active_question_set", [])
+        if questions_set:
+            st.markdown("---")
+
+            # Global Action Bar
+            col_act1, col_act2, col_act3 = st.columns([1.2, 1.2, 1.4])
+
+            with col_act1:
+                if st.button("➕ Add Custom Question", key="add_custom_q_btn", use_container_width=True):
+                    st.session_state.active_question_set.append({
+                        "question": "Type your custom interview question here...",
+                        "category": "Technical",
+                        "difficulty": "Intermediate",
+                        "expected_skill": "Core Competency",
+                    })
+                    st.rerun()
+
+            with col_act2:
+                if st.button("🔄 Regenerate All", key="regen_all_q_btn", use_container_width=True):
+                    with st.spinner("Regenerating entire question set via AI..."):
+                        new_q = ai_question_generator.generate_interview_questions_ai(
+                            candidate=cand_data if selected_cand_id != "NONE" else {},
+                            job=job_data,
+                            difficulty=st.session_state.get("question_set_difficulty", "Mixed"),
+                            num_questions=len(questions_set),
+                            groq_api_key=os.getenv("GROQ_API_KEY")
+                        )
+                        st.session_state.active_question_set = new_q
+                        st.success("Question set regenerated!")
+                        st.rerun()
+
+            with col_act3:
+                prev_label = "👁️ Exit Preview" if st.session_state.get("preview_mode") else "👁️ Candidate Preview Mode"
+                if st.button(prev_label, key="toggle_preview_btn", use_container_width=True):
+                    st.session_state.preview_mode = not st.session_state.get("preview_mode", False)
+                    st.rerun()
+
+            # Save Question Set Section
+            st.markdown('<div class="custom-card" style="border: 2px solid var(--primary); margin-top: 1rem;">', unsafe_allow_html=True)
+            st.markdown("#### 💾 Save as Reusable Question Set")
+            col_qs1, col_qs2 = st.columns([3, 1])
+            with col_qs1:
+                qset_name_val = st.text_input("Question Set Name*", value=f"{job_data.get('job_title', 'Technical')} Round 1", placeholder="e.g. MERN Developer Round 1", key="qset_name_input")
+            with col_qs2:
+                st.write("")
+                st.write("")
+                if st.button("💾 Save Question Set", type="primary", use_container_width=True, key="save_qset_pers_btn"):
+                    ok_s, msg_s, set_id = db_question_sets.save_question_set(
+                        set_name=qset_name_val,
+                        job_id=selected_jd_id,
+                        questions=questions_set,
+                        job_title=job_data.get("job_title", "")
+                    )
+                    if ok_s:
+                        st.success(msg_s)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+                    else:
+                        st.error(msg_s)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # Editor view grouped by category
+            categories = ["Technical", "Behavioural", "Situational", "Follow-up"]
+            cat_tabs = st.tabs(["⚙️ Technical", "💬 Behavioural", "🧠 Situational", "🎯 Follow-up"])
+
+            for tab_idx, cat in enumerate(categories):
+                with cat_tabs[tab_idx]:
+                    cat_questions = [(idx, q) for idx, q in enumerate(questions_set) if q.get("category", "Technical") == cat]
+                    if not cat_questions:
+                        st.info(f"No {cat} questions generated in this set.")
+                    else:
+                        for orig_idx, q_item in cat_questions:
+                            st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+                            c_badge = f'<span class="badge-blue">{html.escape(q_item.get("category", ""))}</span>'
+                            d_badge = f'<span class="badge-green">{html.escape(q_item.get("difficulty", ""))}</span>'
+                            s_badge = f'<span class="badge-purple">{html.escape(q_item.get("expected_skill", ""))}</span>'
+
+                            st.markdown(f'<div style="margin-bottom: 0.8rem;">{c_badge} &nbsp; {d_badge} &nbsp; {s_badge}</div>', unsafe_allow_html=True)
+
+                            new_q_text = st.text_area(
+                                f"Question #{orig_idx + 1}:",
+                                value=q_item.get("question", ""),
+                                height=90,
+                                key=f"q_text_field_{orig_idx}"
+                            )
+
+                            col_sk, col_qact1, col_qact2 = st.columns([2, 1, 1])
+                            with col_sk:
+                                new_skill = st.text_input("Expected Skill:", value=q_item.get("expected_skill", ""), key=f"q_skill_field_{orig_idx}")
+                            with col_qact1:
+                                st.write("")
+                                st.write("")
+                                if st.button("🔄 Single Regen", key=f"regen_single_{orig_idx}", use_container_width=True):
+                                    with st.spinner("Regenerating single question via AI..."):
+                                        single_new = ai_question_generator.regenerate_single_question(
+                                            job_data=job_data,
+                                            category=cat,
+                                            current_question=q_item.get("question", ""),
+                                            skill=q_item.get("expected_skill", ""),
+                                            api_key=os.getenv("GROQ_API_KEY")
+                                        )
+                                        st.session_state.active_question_set[orig_idx] = single_new
+                                        st.rerun()
+                            with col_qact2:
+                                st.write("")
+                                st.write("")
+                                if st.button("🗑️ Delete", key=f"del_single_{orig_idx}", use_container_width=True):
+                                    st.session_state.active_question_set.pop(orig_idx)
+                                    st.rerun()
+
+                            if new_q_text != q_item.get("question") or new_skill != q_item.get("expected_skill"):
+                                st.session_state.active_question_set[orig_idx]["question"] = new_q_text
+                                st.session_state.active_question_set[orig_idx]["expected_skill"] = new_skill
+
+                            st.markdown('</div>', unsafe_allow_html=True)
+
+    with tab_saved:
+        st.markdown("#### 📁 Saved Reusable Question Sets")
+        all_qsets = db_question_sets.get_all_question_sets()
+        if not all_qsets:
+            st.info("No saved Question Sets found. Generate and save a Question Set in the first tab.")
         else:
-            st.markdown('<div class="empty-state"><div class="empty-state-icon">🏆</div><div class="empty-state-text">No Rankings Yet</div></div>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            for qs in all_qsets:
+                st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+                col_qs_h1, col_qs_h2 = st.columns([3, 1])
+                with col_qs_h1:
+                    st.markdown(f"### 📋 {html.escape(qs.get('set_name'))}")
+                    st.caption(f"💼 Role: {html.escape(qs.get('job_title'))} | 🆔 ID: {qs.get('set_id')} | ❓ Questions: {qs.get('question_count')} | 📅 Created: {format_datetime(qs.get('created_at'))}")
+                with col_qs_h2:
+                    if st.button("🗑️ Delete Set", key=f"del_qset_{qs.get('set_id')}", use_container_width=True):
+                        db_question_sets.delete_question_set(qs.get('set_id'))
+                        st.success(f"Question Set '{qs.get('set_name')}' deleted.")
+                        st.rerun()
+
+                with st.expander("👁️ View Questions in Set", expanded=False):
+                    for q in qs.get("questions", []):
+                        st.markdown(f"• **[{q.get('category')}]** {html.escape(q.get('question', ''))} *(Skill: {q.get('expected_skill')}, Difficulty: {q.get('difficulty')})*")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    st.stop()
+
+
+elif active_page == "Interview Assignment":
+    st.markdown('<p class="main-heading">🗓️ Interview Assignment</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Configure candidate interview settings, question sources, voice support, and AI follow-up behavior</p>', unsafe_allow_html=True)
+
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+
+    selected_job_id, selected_job_data, apps_for_job, cands_for_job = render_job_selector_header("assign")
+    if not selected_job_id:
+        st.stop()
+
+    if not cands_for_job:
+        st.warning(f"No candidate applications received for '{selected_job_data.get('job_title')}' yet. Candidates must apply for this job position to be assigned an interview.")
+        st.stop()
+
+    cand_options = {candidate_id(c): f"{safe_text(c.get('full_name'), 'Unknown')} ({safe_text(c.get('email'))})" for c in cands_for_job}
+    selected_cand_id = st.selectbox("Select Candidate Applicant*", options=list(cand_options.keys()), format_func=lambda x: cand_options[x], key="assign_cand_select")
+    selected_cand = next((c for c in cands_for_job if candidate_id(c) == selected_cand_id), cands_for_job[0])
+
+    # Fetch Application document
+    app_doc = db_applications.get_application(selected_cand_id, selected_job_id)
+    if not app_doc or not app_doc.get("ats_score") or float(app_doc.get("ats_score", 0)) == 0.0:
+        ok_a, msg_a, app_doc = db_applications.evaluate_and_apply(selected_cand, selected_job_data)
+
+    ats_score = app_doc.get("ats_score", 0.0) if app_doc else 0.0
+    recommendation = app_doc.get("recommendation", "Needs Improvement") if app_doc else "Needs Improvement"
+    is_overridden = app_doc.get("is_overridden", False) if app_doc else False
+    is_eligible = db_applications.is_eligible_for_interview(recommendation, is_overridden)
+
+    # ATS Screening Card
+    st.markdown("---")
+    st.markdown("#### 🤖 ATS Resume Screening Status")
+    col_scr1, col_scr2 = st.columns([3, 2])
+    with col_scr1:
+        st.markdown(
+            f"""
+            <div style="padding: 0.2rem 0;">
+                <p style="margin: 0.2rem 0; font-size: 1rem;">🎯 <strong>ATS Match Score:</strong> <span style="font-weight:800; font-size:1.2rem;">{ats_score}%</span></p>
+                <p style="margin: 0.2rem 0; font-size: 1rem;">🤖 <strong>Recommendation:</strong> <strong>{html.escape(recommendation)}</strong></p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    with col_scr2:
+        if is_eligible:
+            st.markdown('<div class="badge-green" style="font-size:1.1rem; text-align:center; padding:0.6rem; border-radius:8px;">✅ ELIGIBLE FOR INTERVIEW</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="badge-red" style="font-size:1.1rem; text-align:center; padding:0.6rem; border-radius:8px;">🚫 NOT ELIGIBLE FOR INTERVIEW</div>', unsafe_allow_html=True)
+
+    if not is_eligible:
+        st.warning(f"⚠️ ATS Recommendation is '{recommendation}'. Candidate is not eligible for interview assignment by default.")
+        with st.expander("🔓 Recruiter Override Controls", expanded=True):
+            override_notes = st.text_input("Override Reason", placeholder="e.g. Verified candidate possesses key unlisted experience", key=f"ov_notes_{selected_cand_id}_{selected_job_id}")
+            if st.button("🔓 Apply Recruiter Override", key=f"do_ov_btn_{selected_cand_id}_{selected_job_id}", type="secondary"):
+                ok_ov, msg_ov = db_applications.override_application_eligibility(app_doc.get("application_id"), override_notes)
+                if ok_ov:
+                    st.success(msg_ov)
+                    st.rerun()
+                else:
+                    st.error(msg_ov)
+
+    # ── Assignment Configuration Settings ──
+    st.markdown("---")
+    st.markdown("#### ⚙️ Interview Configuration Settings")
+
+    col_cfg1, col_cfg2, col_cfg3, col_cfg4 = st.columns(4)
+    with col_cfg1:
+        import datetime
+        default_due = datetime.date.today() + datetime.timedelta(days=7)
+        due_date_val = st.date_input("Interview Date / Due Date*", value=default_due, key="assign_due_date_input")
+
+    with col_cfg2:
+        duration_val = st.selectbox("Interview Duration*", [15, 30, 45, 60], index=1, format_func=lambda x: f"{x} Minutes", key="assign_duration_select")
+
+    with col_cfg3:
+        voice_opt = st.radio("Voice Enabled (Speech-to-Text)", ["Yes", "No"], index=0, horizontal=True, key="assign_voice_select")
+
+    with col_cfg4:
+        followup_opt = st.radio("AI Follow-up Questions", ["Yes", "No"], index=0, horizontal=True, key="assign_followup_select")
+
+    # ── Question Source Options ──
+    st.markdown("---")
+    st.markdown("#### ❓ Question Source")
+
+    q_source = st.radio(
+        "Select Question Source*",
+        ["Recruiter Question Set", "Fully AI Generated"],
+        index=0,
+        horizontal=True,
+        key="assign_q_source_radio"
+    )
+
+    assigned_questions = []
+    selected_qset_id = ""
+
+    if q_source == "Recruiter Question Set":
+        saved_qsets = db_question_sets.get_all_question_sets(selected_job_id)
+        if not saved_qsets:
+            # Fallback to all saved question sets if none specific to this job
+            saved_qsets = db_question_sets.get_all_question_sets()
+
+        if saved_qsets:
+            qset_map = {qs.get("set_id"): f"{qs.get('set_name')} ({qs.get('question_count')} Questions)" for qs in saved_qsets}
+            selected_qset_id = st.selectbox("Choose Saved Question Set*", options=list(qset_map.keys()), format_func=lambda x: qset_map[x], key="assign_qset_select")
+            chosen_qs_doc = next((q for q in saved_qsets if q.get("set_id") == selected_qset_id), saved_qsets[0])
+            assigned_questions = [q.get("question", "") for q in chosen_qs_doc.get("questions", []) if q.get("question")]
+
+            with st.expander("👁️ Preview Questions in Selected Set", expanded=True):
+                for idx, q_txt in enumerate(assigned_questions):
+                    st.markdown(f"**Q{idx+1}:** {html.escape(q_txt)}")
+        else:
+            st.info("No saved Question Sets found. Generating default questions for this position.")
+            default_qs = db_interviews.generate_job_interview_questions(selected_job_data)
+            q_raw_text = st.text_area("Question Set Preview & Editor (one per line):", value="\n".join(default_qs), height=150)
+            assigned_questions = [q.strip() for q in q_raw_text.split("\n") if q.strip()]
+
+    else:
+        st.info("🤖 **Fully AI Generated Mode Active**: AI will dynamically generate turn-by-turn questions depending on Job Description, Candidate Resume, and candidate's live responses.")
+        assigned_questions = db_interviews.generate_job_interview_questions(selected_job_data)
+
+    st.markdown("---")
+    if not is_eligible:
+        st.button("🚀 Assign Interview (Disabled - Requires Recruiter Override)", disabled=True, use_container_width=True, key="assign_btn_disabled")
+    else:
+        if st.button("🚀 Assign Interview to Candidate", type="primary", use_container_width=True, key="assign_btn_enabled"):
+            ok, msg, intv_id = db_interviews.create_interview_assignment(
+                candidate_id=selected_cand_id,
+                job_id=selected_job_id,
+                questions=assigned_questions,
+                due_date=str(due_date_val),
+                question_source=q_source,
+                question_set_id=selected_qset_id,
+                duration_minutes=int(duration_val),
+                voice_enabled=(voice_opt == "Yes"),
+                allow_ai_followup=(followup_opt == "Yes")
+            )
+            if ok:
+                st.success(msg)
+                st.info("The candidate can now view and complete this interview in their Candidate Portal.")
+                if hasattr(st, "cache_data"):
+                    st.cache_data.clear()
+            else:
+                st.error(msg)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
+
+
+elif active_page == "Submitted Interviews":
+    st.markdown('<p class="main-heading">Submitted Candidate Interviews & AI Evaluations</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Inspect candidate answers, AI evaluation scores, feedback, and download full PDF reports</p>', unsafe_allow_html=True)
+
+    viewing_intv_id = st.session_state.get("viewing_submitted_intv_id")
+    if viewing_intv_id:
+        if st.button("⬅️ Back to Submitted List", type="secondary"):
+            st.session_state.viewing_submitted_intv_id = None
+            st.rerun()
+
+        intv = db_interviews.get_interview_by_id(viewing_intv_id)
+        if intv:
+            cid = intv.get("candidate_id")
+            jid = intv.get("job_id")
+            cand = db.get_candidate_by_id(cid, include_raw_text=True) or {"full_name": cid, "email": "N/A"}
+            c_name = safe_text(cand.get("full_name"), "Candidate")
+
+            jds = load_jobs()
+            job_data = next((j for j in jds if j.get("job_id") == jid), {"job_title": jid, "company_name": "Talent Corp", "required_skills": []})
+            j_title = job_data.get("job_title", "Position")
+
+            # Fetch or run AI evaluations
+            evaluations = db_interview_evaluator.get_evaluations_by_interview(viewing_intv_id)
+            summary_doc = db_interview_evaluator.get_interview_summary(viewing_intv_id)
+
+            if not evaluations or not summary_doc:
+                responses = db_interviews.get_responses_by_interview(viewing_intv_id)
+                if responses:
+                    with st.spinner("🤖 Running AI evaluation on candidate responses..."):
+                        evaluations = []
+                        groq_key = os.getenv("GROQ_API_KEY", "")
+                        for r in responses:
+                            q_text = r.get("question", "")
+                            ans_text = r.get("answer", "")
+                            eval_res = ai_interview_evaluator.evaluate_single_answer_ai(q_text, ans_text, job_data, groq_api_key=groq_key)
+                            eval_res["question"] = q_text
+                            eval_res["candidate_answer"] = ans_text
+                            evaluations.append(eval_res)
+
+                        summary_doc = ai_interview_evaluator.compute_interview_summary(evaluations)
+                        db_interview_evaluator.save_interview_evaluations(viewing_intv_id, cid, jid, evaluations, summary_doc)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+
+            responses = db_interviews.get_responses_by_interview(viewing_intv_id)
+            eval_time_str = format_datetime(summary_doc.get("created_at") or intv.get("evaluated_at") or intv.get("updated_at"))
+
+            # ── 1. Top Interview Summary Card (Requirement 2, 3, 4, 5) ──
+            st.markdown('<div class="custom-card" style="border: 2px solid var(--primary); margin-bottom: 1.5rem;">', unsafe_allow_html=True)
+            st.markdown('<p class="card-title" style="font-size: 1.25rem;">📊 Candidate Interview Summary Report</p>', unsafe_allow_html=True)
+
+            col_s1, col_s2 = st.columns([3, 2])
+            with col_s1:
+                q_src_type = intv.get("question_source", "Recruiter Question Set")
+                qset_id_str = intv.get("question_set_id", "")
+                dur_str = f"{intv.get('duration_minutes', 30)} Mins"
+                v_str = "🎤 Voice Enabled" if intv.get("voice_enabled", True) else "⌨️ Text Only"
+                fol_str = "⚡ AI Follow-ups On" if intv.get("allow_ai_followup", True) else "🚫 No Follow-ups"
+
+                qset_info = f" (Set ID: {qset_id_str})" if qset_id_str else ""
+
+                st.markdown(
+                    f"""
+                    <div style="padding: 0.2rem 0;">
+                        <h3 style="margin: 0; color: var(--heading);">{html.escape(c_name)}</h3>
+                        <p style="margin: 0.3rem 0; color: var(--text); font-weight: 600; font-size: 1rem;">💼 Role: {html.escape(j_title)}</p>
+                        <p style="margin: 0.2rem 0; font-size: 0.85rem; color: var(--primary); font-weight: 700;">
+                            📌 Type: <code>{html.escape(q_src_type)}{qset_info}</code> &nbsp;|&nbsp; ⏱️ {dur_str} &nbsp;|&nbsp; {v_str} &nbsp;|&nbsp; {fol_str}
+                        </p>
+                        <p style="margin: 0.2rem 0; color: var(--muted); font-size: 0.85rem;">
+                            🆔 Assignment ID: <code>{html.escape(viewing_intv_id)}</code> &nbsp;|&nbsp; 📅 Submitted: {format_datetime(intv.get('submitted_time'))}
+                        </p>
+                        <p style="margin: 0.2rem 0; color: var(--muted); font-size: 0.85rem;">
+                            ⏱️ Evaluated Timestamp: <strong>{html.escape(eval_time_str)}</strong>
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            with col_s2:
+                ov_sc = summary_doc.get("overall_interview_score", 0)
+                tech_sc = summary_doc.get("avg_technical_score", 0)
+                comm_sc = summary_doc.get("avg_communication_score", 0)
+                conf_sc = summary_doc.get("avg_confidence_score", 0)
+                final_rec = summary_doc.get("final_recommendation", "Recommended")
+
+                # Recommendation categories: 90-100 Highly Recommended, 75-89 Recommended, 60-74 Needs Improvement, <60 Not Recommended
+                if ov_sc >= 90:
+                    rec_color = "#10b981"
+                    badge_cls = "badge-green"
+                elif ov_sc >= 75:
+                    rec_color = "#3b82f6"
+                    badge_cls = "badge-blue"
+                elif ov_sc >= 60:
+                    rec_color = "#f59e0b"
+                    badge_cls = "badge-yellow"
+                else:
+                    rec_color = "#ef4444"
+                    badge_cls = "badge-red"
+
+                st.markdown(
+                    f"""
+                    <div style="text-align: center; background: var(--bg-sec); padding: 1rem; border-radius: 10px; border: 1px solid var(--border);">
+                        <div style="font-size: 0.75rem; font-weight: 700; color: var(--muted); letter-spacing: 0.5px;">FINAL AI RECOMMENDATION</div>
+                        <div style="font-size: 1.4rem; font-weight: 800; color: {rec_color}; margin: 0.3rem 0;">{html.escape(final_rec)}</div>
+                        <span class="{badge_cls}" style="font-size: 0.9rem;">Overall Score: {ov_sc}%</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            # ── Recruiter Actions Bar ──
+            st.markdown("---")
+            current_app = db_applications.get_application(cid, jid) or {}
+            curr_decision = current_app.get("final_decision", "Pending")
+
+            if curr_decision == "Rejected":
+                st.error("🚫 Candidate Decision: REJECTED")
+            elif curr_decision == "Selected":
+                st.success("🎉 Candidate Decision: SELECTED (HIRED)")
+            elif curr_decision == "Shortlisted":
+                st.info("⭐ Candidate Decision: SHORTLISTED")
+
+            st.markdown("#### ⚡ Recruiter Final Decision & Actions")
+            act_col1, act_col2, act_col3, act_col4, act_col5 = st.columns(5)
+
+            with act_col1:
+                is_sel = (curr_decision == "Selected")
+                if st.button("✅ Select / Hire", key=f"act_next_{viewing_intv_id}", type="primary" if is_sel else "secondary", use_container_width=True):
+                    ok_d, msg_d = db_applications.set_application_final_decision(cid, jid, "Selected")
+                    db.update_candidate_stage(cid, "Selected")
+                    st.success(f"Candidate {c_name} set to 'Selected (Hired)'!")
+                    if hasattr(st, "cache_data"):
+                        st.cache_data.clear()
+                    st.rerun()
+
+            with act_col2:
+                is_short = (curr_decision == "Shortlisted")
+                if st.button("⭐ Shortlist", key=f"act_hr_{viewing_intv_id}", type="primary" if is_short else "secondary", use_container_width=True):
+                    ok_d, msg_d = db_applications.set_application_final_decision(cid, jid, "Shortlisted")
+                    st.info(f"Candidate {c_name} set to 'Shortlisted'!")
+                    if hasattr(st, "cache_data"):
+                        st.cache_data.clear()
+                    st.rerun()
+
+            with act_col3:
+                is_rej = (curr_decision == "Rejected")
+                if st.button("❌ Reject Candidate", key=f"act_reject_{viewing_intv_id}", type="primary" if is_rej else "secondary", use_container_width=True):
+                    ok_d, msg_d = db_applications.set_application_final_decision(cid, jid, "Rejected")
+                    db.update_candidate_stage(cid, "Rejected")
+                    st.warning(f"Candidate {c_name} marked as 'Rejected'.")
+                    if hasattr(st, "cache_data"):
+                        st.cache_data.clear()
+                    st.rerun()
+
+            with act_col4:
+                if st.button("🔄 Re-evaluate (New Rules)", key=f"act_reeval_{viewing_intv_id}", use_container_width=True):
+                    with st.spinner("🤖 Re-evaluating candidate answers with Senior Technical Interviewer rules..."):
+                        responses_to_eval = db_interviews.get_responses_by_interview(viewing_intv_id)
+                        new_evaluations = []
+                        groq_key = os.getenv("GROQ_API_KEY", "")
+                        for r in responses_to_eval:
+                            q_text = r.get("question", "")
+                            ans_text = r.get("answer", "")
+                            eval_res = ai_interview_evaluator.evaluate_single_answer_ai(q_text, ans_text, job_data, groq_api_key=groq_key)
+                            eval_res["question"] = q_text
+                            eval_res["candidate_answer"] = ans_text
+                            new_evaluations.append(eval_res)
+
+                        new_summary = ai_interview_evaluator.compute_interview_summary(new_evaluations)
+                        db_interview_evaluator.save_interview_evaluations(viewing_intv_id, cid, jid, new_evaluations, new_summary)
+                        if hasattr(st, "cache_data"):
+                            st.cache_data.clear()
+                        st.success("Interview re-evaluated successfully with new Senior Interviewer rules!")
+                        st.rerun()
+
+            with act_col5:
+                if evaluations and summary_doc:
+                    try:
+                        pdf_bytes = interview_pdf_report.generate_interview_pdf_report(cand, job_data, viewing_intv_id, evaluations, summary_doc)
+                        st.download_button(
+                            label="📥 Download PDF Report",
+                            data=pdf_bytes,
+                            file_name=f"Interview_Report_{c_name.replace(' ', '_')}_{viewing_intv_id}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                    except Exception as exc:
+                        st.error(f"PDF error: {exc}")
+
+            st.markdown("---")
+            st.markdown("#### 🎯 Performance Score Breakdown")
+
+            def get_score_color(val):
+                if val >= 80: return "#10b981"
+                if val >= 60: return "#f59e0b"
+                return "#ef4444"
+
+            sc_col1, sc_col2 = st.columns(2)
+            with sc_col1:
+                custom_progress_bar(f"Overall Interview Score ({ov_sc}%)", ov_sc, get_score_color(ov_sc))
+                custom_progress_bar(f"Technical Score ({tech_sc}%)", tech_sc, get_score_color(tech_sc))
+            with sc_col2:
+                custom_progress_bar(f"Communication Score ({comm_sc}%)", comm_sc, get_score_color(comm_sc))
+                custom_progress_bar(f"Confidence Score ({conf_sc}%)", conf_sc, get_score_color(conf_sc))
+
+            st.markdown("---")
+            col_st, col_im = st.columns(2)
+            with col_st:
+                st.markdown("#### 🌟 Top Candidate Strengths")
+                for s in summary_doc.get("top_strengths", []):
+                    st.markdown(f"✅ {html.escape(str(s))}")
+            with col_im:
+                st.markdown("#### 🎯 Key Areas for Improvement")
+                for i in summary_doc.get("areas_for_improvement", []):
+                    st.markdown(f"⚠️ {html.escape(str(i))}")
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown("---")
+            st.markdown("#### 📝 Detailed Per-Question Candidate Answers & AI Evaluations")
+
+            eval_map = {e.get("question", "").strip(): e for e in evaluations} if evaluations else {}
+
+            for idx, r in enumerate(responses):
+                q_text = r.get("question", "").strip()
+                ans_text = r.get("answer", "") or "No response provided"
+                e_info = eval_map.get(q_text, {})
+
+                st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+                st.markdown(f"#### Question {idx + 1}: {html.escape(q_text)}")
+
+                st.markdown(f'<div style="background: var(--bg-sec); padding: 0.9rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1rem;"><p style="white-space: pre-wrap; margin: 0; color: var(--text);"><b>Candidate Answer:</b><br>{html.escape(ans_text)}</p></div>', unsafe_allow_html=True)
+
+                if e_info:
+                    t_sc = e_info.get("technical_score", 0)
+                    c_sc = e_info.get("communication_score", 0)
+                    cf_sc = e_info.get("confidence_score", 0)
+                    o_sc = e_info.get("overall_score", 0)
+                    fb = e_info.get("ai_feedback", e_info.get("feedback", ""))
+
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
+                            <span class="badge-blue">Tech Score: {t_sc}%</span>
+                            <span class="badge-purple">Comm Score: {c_sc}%</span>
+                            <span class="badge-yellow">Confidence: {cf_sc}%</span>
+                            <span class="badge-green">Overall Question Score: {o_sc}%</span>
+                        </div>
+                        <div style="background: var(--bg); padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border); font-size: 0.9rem;">
+                            <strong>AI Feedback:</strong> {html.escape(fb)}
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    s_list = e_info.get("strengths", [])
+                    i_list = e_info.get("improvements", [])
+                    if s_list or i_list:
+                        sc1, sc2 = st.columns(2)
+                        with sc1:
+                            if s_list:
+                                st.markdown("<b>Key Strengths:</b>", unsafe_allow_html=True)
+                                for s_item in s_list:
+                                    st.markdown(f"- {html.escape(str(s_item))}")
+                        with sc2:
+                            if i_list:
+                                st.markdown("<b>Areas for Improvement:</b>", unsafe_allow_html=True)
+                                for i_item in i_list:
+                                    st.markdown(f"- {html.escape(str(i_item))}")
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        else:
+            st.error("Interview submission record not found.")
+        st.stop()
+
+    selected_job_id, selected_job, apps_for_job, cands_for_job = render_job_selector_header("sub_intv")
+    if not selected_job_id:
+        st.stop()
+
+    submitted_list = db_interviews.get_submitted_interviews()
+    filtered_submissions = [i for i in submitted_list if i.get("job_id") == selected_job_id]
+
+    if not filtered_submissions:
+        st.info(f"No submitted interviews for candidate applications of '{selected_job.get('job_title')}' yet.")
+    else:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        jds = db_jobs.get_all_jobs()
+        cands = db.get_all_candidates()
+        jd_map = {j.get("job_id"): j.get("job_title") for j in jds}
+        cand_map = {candidate_id(c): safe_text(c.get("full_name"), candidate_id(c)) for c in cands}
+
+        for idx, item in enumerate(filtered_submissions):
+            iid = item.get("interview_id")
+            cid = item.get("candidate_id")
+            c_name = cand_map.get(cid, cid)
+            jtitle = jd_map.get(item.get("job_id"), item.get("job_id"))
+            sub_time = format_datetime(item.get("submitted_time") or item.get("updated_at"))
+            status = item.get("interview_status", "Submitted")
+
+            col_a, col_b = st.columns([4, 1])
+            with col_a:
+                status_b = render_stage_badge(status if status != "Evaluated" else "Selected")
+                st.markdown(
+                    f"""
+                    <div style="padding: 0.5rem 0;">
+                        <h4 style="margin: 0; color: var(--heading);">{html.escape(c_name)} — {html.escape(jtitle)}</h4>
+                        <p style="margin: 0.2rem 0; color: var(--muted); font-size: 0.85rem;">
+                            🆔 Assignment ID: {html.escape(iid)} &nbsp;|&nbsp; 📅 Submitted: {html.escape(sub_time)}
+                        </p>
+                        <div>{status_b}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            with col_b:
+                btn_txt = "👁️ View Evaluation" if status == "Evaluated" else "🤖 Evaluate & View"
+                if st.button(btn_txt, key=f"view_ans_rec_{iid}_{idx}", use_container_width=True, type="primary"):
+                    st.session_state.viewing_submitted_intv_id = iid
+                    st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
     st.stop()
 
 
 elif active_page == "Candidate Details":
     st.markdown('<p class="main-heading">Candidates Directory</p>', unsafe_allow_html=True)
-    st.markdown('<p class="main-subtitle">Search and manage parsed candidate profiles</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Search and manage parsed candidate profiles for selected Job Description</p>', unsafe_allow_html=True)
+
+    selected_job_id, selected_job, apps_for_job, cands_for_job = render_job_selector_header("cand_det")
+    if not selected_job_id:
+        st.stop()
 
     search_query = st.text_input(
-        "🔍 Search Candidates",
+        "🔍 Search Candidates for Selected Job Position",
         value=st.session_state.get("search_filter", ""),
         placeholder="Type name, email, skills, education, or work history...",
         key="candidate_search_input",
@@ -1187,153 +3740,20 @@ elif active_page == "Candidate Details":
             st.rerun()
 
         if candidate:
-            st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-            
-            import plotly.express as px
-            import plotly.graph_objects as go
-            import pandas as pd
-            import numpy as np
-            
-            theme = st.session_state.theme
-            plotly_template = "plotly_dark" if theme == "Dark" else "plotly_white"
-            bg_color = "rgba(0,0,0,0)"
-            
-            import db_jobs
-            jds = db_jobs.get_all_jobs()
-            if not jds:
-                st.info("No Job Descriptions available to evaluate against. Please create one.")
-                st.stop()
-            
-            st.markdown("#### Evaluate Candidate")
-            jd_options = {jd["job_id"]: f"{jd['job_title']} at {jd.get('company_name', 'Unknown')}" for jd in jds}
-            selected_jd_id = st.selectbox("Select a Job Description for ATS Scoring", options=list(jd_options.keys()), format_func=lambda x: jd_options[x], key=f"details_jd_select_{candidate.get('_id', '')}")
-            selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), jds[0])
-            
-            ats_result = calculate_candidate_score(candidate, selected_job)
-            cand_id = str(candidate.get("id") or candidate.get("_id") or candidate.get("email"))
-            if db_ok and cand_id and selected_job:
-                db.save_evaluation(
-                    selected_job.get("job_id"),
-                    cand_id,
-                    ats_result.get("hiring_score", 0),
-                    ats_result.get("recommendation", "Not Recommended"),
-                    ats_result.get("score_breakdown", {})
-                )
-            actual_ats = ats_result.get("hiring_score", 0)
-            breakdown = ats_result.get("score_breakdown", {})
-            
-            # Header with Avatar and ATS Gauge
-            h_col1, h_col2 = st.columns([3, 1])
-            with h_col1:
-                name = html.escape(safe_text(candidate.get("full_name"), "Unknown"))
-                initial = name[0].upper() if name else "U"
-                st.markdown(f'''
-                <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-                    <div style="width: 80px; height: 80px; border-radius: 50%; background-color: var(--primary); display: flex; align-items: center; justify-content: center; margin-right: 1.5rem; color: white; font-weight: 700; font-size: 2.5rem; border: 3px solid var(--border);">
-                        {initial}
-                    </div>
-                    <div>
-                        <h2 style="margin: 0; padding: 0; color: var(--heading);">{name}</h2>
-                        <p style="color: var(--muted); font-size: 1.1rem; margin-top: 0.2rem;">📧 {html.escape(safe_text(candidate.get("email")))} &nbsp;&nbsp;|&nbsp;&nbsp; 📱 {html.escape(safe_text(candidate.get("phone")))}</p>
-                    </div>
-                </div>
-                ''', unsafe_allow_html=True)
-            with h_col2:
-                fig_ats = go.Figure(go.Indicator(
-                    mode="gauge+number",
-                    value=actual_ats,
-                    domain={'x': [0, 1], 'y': [0, 1]},
-                    title={'text': "ATS Score", 'font': {'size': 12}},
-                    gauge={
-                        'axis': {'range': [0, 100], 'tickwidth': 1},
-                        'bar': {'color': "var(--primary)"},
-                        'bgcolor': "var(--bg-sec)",
-                        'borderwidth': 0
-                    }
-                ))
-                fig_ats.update_layout(margin=dict(l=10, r=10, t=20, b=10), height=140, paper_bgcolor="rgba(0,0,0,0)", font={'color': "var(--text)"})
-                st.plotly_chart(fig_ats, use_container_width=True, config={'displayModeBar': False})
-
-            st.markdown("---")
-            
-            # Radar Chart and Skills
-            r_col1, r_col2 = st.columns([1, 1])
-            with r_col1:
-                st.markdown('<p class="card-title">📊 Competency Radar</p>', unsafe_allow_html=True)
-                categories = ['Skills', 'Experience', 'Education', 'Projects', 'Certifications']
-                values = [
-                    breakdown.get("skill_match", 0),
-                    breakdown.get("experience_match", 0),
-                    breakdown.get("education_match", 0),
-                    breakdown.get("project_relevance", 0),
-                    breakdown.get("certification_match", 0)
-                ]
-                fig_radar = go.Figure(data=go.Scatterpolar(
-                    r=values + [values[0]],
-                    theta=categories + [categories[0]],
-                    fill='toself',
-                    fillcolor="rgba(16, 185, 129, 0.2)",
-                    line_color="var(--primary)"
-                ))
-                fig_radar.update_layout(
-                    polar=dict(
-                        radialaxis=dict(visible=True, range=[0, 100], autorange=False),
-                        bgcolor=bg_color
-                    ),
-                    showlegend=False,
-                    paper_bgcolor=bg_color,
-                    plot_bgcolor=bg_color,
-                    margin=dict(l=30, r=30, t=30, b=30),
-                    height=300
-                )
-                st.plotly_chart(fig_radar, use_container_width=True, config={'displayModeBar': False})
-                
-            with r_col2:
-                st.markdown('<p class="card-title">🎯 Top Skills</p>', unsafe_allow_html=True)
-                skills_list = candidate.get("skills")
-                if isinstance(skills_list, str):
-                    skills_list = [s.strip() for s in skills_list.split(",") if s.strip()]
-                elif not skills_list:
-                    skills_list = []
-                
-                s_html = "".join([f'<span class="badge-blue">{html.escape(s)}</span>' for s in skills_list[:25]])
-                st.markdown(s_html if s_html else '<span class="badge-amber">None</span>', unsafe_allow_html=True)
-
-            st.markdown("---")
-            
-            # Timelines
-            t_col1, t_col2 = st.columns(2)
-            with t_col1:
-                st.markdown("#### 🎓 Education Timeline")
-                edu_text = html.escape(safe_text(candidate.get("education"), "No education found")).replace("\n", "<br>")
-                st.markdown(f'<div style="border-left: 2px solid var(--primary); padding-left: 1rem; margin-left: 0.5rem; margin-bottom: 1.5rem;"><p style="white-space: pre-wrap;">{edu_text}</p></div>', unsafe_allow_html=True)
-                
-                st.markdown("#### 🏆 Certifications")
-                cert_text = html.escape(safe_text(candidate.get("certifications"), "None")).replace("\n", "<br>")
-                st.markdown(f'<div style="background: var(--bg-sec); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);"><p style="white-space: pre-wrap;">{cert_text}</p></div>', unsafe_allow_html=True)
-                
-            with t_col2:
-                st.markdown("#### 💼 Work Experience Timeline")
-                exp_text = html.escape(safe_text(candidate.get("experience"), "No experience found")).replace("\n", "<br>")
-                st.markdown(f'<div style="border-left: 2px solid var(--primary); padding-left: 1rem; margin-left: 0.5rem; margin-bottom: 1.5rem;"><p style="white-space: pre-wrap;">{exp_text}</p></div>', unsafe_allow_html=True)
-                
-                st.markdown("#### 🛠 Projects")
-                proj_text = html.escape(safe_text(candidate.get("projects"), "None")).replace("\n", "<br>")
-                st.markdown(f'<div style="background: var(--bg-sec); padding: 1rem; border-radius: 8px; border: 1px solid var(--border);"><p style="white-space: pre-wrap;">{proj_text}</p></div>', unsafe_allow_html=True)
-
-            st.markdown("---")
-            with st.expander("📄 View Raw Resume Text"):
-                st.text_area("Raw Text Content", candidate.get("raw_text", ""), height=300, disabled=True)
-
-            st.markdown("</div>", unsafe_allow_html=True)
+            render_ats_candidate_details(candidate, db_ok)
         else:
-            st.error("Candidate not found.")
+            st.error("Candidate profile not found.")
 
     else:
-        candidates = load_candidates(search_query)
+        candidates = cands_for_job
+        if search_query.strip():
+            sq = search_query.strip().lower()
+            candidates = [c for c in candidates if sq in (c.get("full_name") or "").lower() or sq in (c.get("email") or "").lower() or sq in str(c.get("skills") or "").lower()]
 
-        if candidates:
-            st.markdown(f"Showing **{len(candidates)}** candidates matching your search.")
+        if not candidates:
+            st.info(f"No candidate applications received for '{selected_job.get('job_title')}' yet.")
+        else:
+            st.markdown(f"Showing **{len(candidates)}** candidate applicants for **{html.escape(selected_job.get('job_title'))}**.")
 
             for c in candidates:
                 cid = candidate_id(c)
@@ -1365,8 +3785,6 @@ elif active_page == "Candidate Details":
                             st.rerun()
 
                     st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            st.info("No candidates found matching the search criteria.")
 
     st.stop()
 
@@ -1570,7 +3988,7 @@ elif active_page == "Job Descriptions":
 
 elif active_page == "Skill Gap Analysis":
     st.markdown('<p class="main-heading">Skill Gap Analysis</p>', unsafe_allow_html=True)
-    st.markdown('<p class="main-subtitle">Identify missing competencies across your talent pool</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Identify missing competencies across applicants for selected Job Description</p>', unsafe_allow_html=True)
     
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
     st.markdown('<p class="card-title">🔍 Talent Pool Skill Coverage</p>', unsafe_allow_html=True)
@@ -1582,19 +4000,13 @@ elif active_page == "Skill Gap Analysis":
     plotly_template = "plotly_dark" if theme == "Dark" else "plotly_white"
     bg_color = "rgba(0,0,0,0)"
     
-    candidates = load_candidates("")
-    import db_jobs
-    jds = db_jobs.get_all_jobs()
+    selected_jd_id, selected_job, apps_for_job, candidates = render_job_selector_header("gap")
+    if not selected_jd_id or not selected_job:
+        st.stop()
     if not candidates:
-        st.info("No candidates available for gap analysis.")
+        st.info("No candidate applications received for this job description yet.")
+        st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
-    if not jds:
-        st.info("No Job Descriptions available for gap analysis.")
-        st.stop()
-
-    jd_options = {jd["job_id"]: f"{jd['job_title']} at {jd.get('company_name', 'Unknown')}" for jd in jds}
-    selected_jd_id = st.selectbox("Select a Job Description to Analyze Gaps against", options=list(jd_options.keys()), format_func=lambda x: jd_options[x], key="gap_jd_select")
-    selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), jds[0])
 
     missing_counts = {}
     for c in candidates:
@@ -1604,7 +4016,7 @@ elif active_page == "Skill Gap Analysis":
             missing_counts[skill] = missing_counts.get(skill, 0) + 1
 
     if not missing_counts:
-        st.success("No skill gaps found in the current talent pool for this job!")
+        st.success("No skill gaps found in the candidate applicants for this job!")
         st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
 
@@ -1625,7 +4037,7 @@ elif active_page == "Skill Gap Analysis":
     fig_gap = px.bar(df_gaps, x="Gap Percentage", y="Skill", orientation='h', template=plotly_template, title="Highest Skill Gaps", color="Gap Percentage", color_continuous_scale=[primary_hex, teal_hex])
     fig_gap.update_layout(paper_bgcolor=bg_color, plot_bgcolor=bg_color, margin=dict(l=0, r=0, t=30, b=0), height=250, coloraxis_showscale=False)
     st.plotly_chart(fig_gap, use_container_width=True, config={'displayModeBar': False})
-    st.markdown("#### ?? Recommended Learning Roadmap")
+    st.markdown("#### 🎓 Recommended Learning Roadmap")
     roadmap_html = ""
     for idx, row in df_gaps.sort_values("Gap Percentage", ascending=False).iterrows():
         pct = row["Gap Percentage"]
@@ -1637,12 +4049,15 @@ elif active_page == "Skill Gap Analysis":
         </div>
         """
     st.markdown(roadmap_html, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
+
 elif active_page == "Candidate Ranking":
     st.markdown('<p class="main-heading">Candidate Rankings</p>', unsafe_allow_html=True)
-    st.markdown('<p class="main-subtitle">Global leaderboard of top talent</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Leaderboard of applicants for selected Job Description</p>', unsafe_allow_html=True)
     
     st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown('<p class="card-title">🏆 Top Candidate Leaderboard</p>', unsafe_allow_html=True)
+    st.markdown('<p class="card-title">🏆 Candidate Leaderboard</p>', unsafe_allow_html=True)
     
     import pandas as pd
     import numpy as np
@@ -1651,19 +4066,13 @@ elif active_page == "Candidate Ranking":
     plotly_template = "plotly_dark" if theme == "Dark" else "plotly_white"
     bg_color = "rgba(0,0,0,0)"
     
-    candidates = load_candidates("")
-    import db_jobs
-    jds = db_jobs.get_all_jobs()
+    selected_jd_id, selected_job, apps_for_job, candidates = render_job_selector_header("rank")
+    if not selected_jd_id or not selected_job:
+        st.stop()
     if not candidates:
-        st.info("No candidates available for ranking.")
+        st.info("No candidate applications received for this job description yet.")
+        st.markdown("</div>", unsafe_allow_html=True)
         st.stop()
-    if not jds:
-        st.info("No Job Descriptions available to rank candidates against. Please create one first.")
-        st.stop()
-        
-    jd_options = {jd["job_id"]: f"{jd['job_title']} at {jd.get('company_name', 'Unknown')}" for jd in jds}
-    selected_jd_id = st.selectbox("Select a Job Description to Rank Candidates against", options=list(jd_options.keys()), format_func=lambda x: jd_options[x], key="rank_jd_select")
-    selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), jds[0])
           
     rank_data = []
     for c in candidates:
@@ -1763,33 +4172,36 @@ Pipeline Status:
 
 elif active_page == "Candidate Matching":
     st.markdown('<p class="main-heading">Job Description Matching</p>', unsafe_allow_html=True)
-    st.markdown('<p class="main-subtitle">Compare candidates against Job Descriptions</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Compare applicant candidates against Job Description requirements</p>', unsafe_allow_html=True)
     
     import db_jobs
     from jd_matching_service import compare_candidates_with_jd
-    
-    jds = db_jobs.get_all_jobs()
-    if not jds:
-        st.info("No Job Descriptions found. Please add a Job Description via API or DB to use this feature.")
-    else:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        # Search / Select JD
-        jd_options = {jd["job_id"]: f"{jd['job_title']} at {jd.get('company_name', 'Unknown')}" for jd in jds}
-        
-        selected_jd_id = st.selectbox("Select a Job Description to Match", options=list(jd_options.keys()), format_func=lambda x: jd_options[x])
-        
-        if st.button("🔍 Run Matching Engine", type="primary"):
-            with st.spinner("Analyzing candidate pool against requirements..."):
-                results = compare_candidates_with_jd(selected_jd_id)
-                st.session_state["matching_results"] = results
-                st.session_state["matching_jd_id"] = selected_jd_id
+
+    selected_jd_id, selected_job, apps_for_job, candidates = render_job_selector_header("match")
+    if not selected_jd_id or not selected_job:
+        st.stop()
+    if not candidates:
+        st.info("No candidate applications received for this job description yet.")
+        st.stop()
+
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    if st.button("🔍 Run Matching Engine", type="primary"):
+        with st.spinner("Analyzing candidate applicants against job requirements..."):
+            results = compare_candidates_with_jd(selected_jd_id)
+            # Filter results to candidates for this job
+            cand_names_or_ids = {c.get("full_name") for c in candidates} | {c.get("candidate_id") for c in candidates} | {c.get("email") for c in candidates}
+            filtered_results = [r for r in results if r.get("candidate_name") in cand_names_or_ids or r.get("candidate_id") in cand_names_or_ids]
+            st.session_state["matching_results"] = filtered_results or results
+            st.session_state["matching_jd_id"] = selected_jd_id
                 
         if "matching_results" in st.session_state and st.session_state.get("matching_jd_id") == selected_jd_id:
             results = st.session_state["matching_results"]
             if results:
                 st.success(f"Successfully evaluated {len(results)} candidates.")
                 
-                selected_job = next((j for j in jds if j["job_id"] == selected_jd_id), None)
+                if not selected_job:
+                    jds = load_jobs()
+                    selected_job = next((j for j in jds if j.get("job_id") == selected_jd_id), {})
                 
                 for res in results:
                     pct = res["match_percentage"]

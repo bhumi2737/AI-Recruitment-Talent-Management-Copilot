@@ -213,6 +213,8 @@ def calculate_candidate_score(candidate: dict[str, Any], job: dict[str, Any]) ->
     return {
         "job_id": job_id,
         "hiring_score": hiring_score,
+        "overall_score": hiring_score,
+        "ats_score": hiring_score,
         "recommendation": recommendation,
         "score_breakdown": score_breakdown,
         "skill_match": skill_match_percent,

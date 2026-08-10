@@ -1,0 +1,148 @@
+{
+  "INTV-A9717947": {
+    "summary_id": "ISUM-ACCA71F0",
+    "interview_id": "INTV-A9717947",
+    "candidate_id": "CAND-RAHUL",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-0F45AA",
+    "overall_interview_score": 90,
+    "avg_technical_score": 91,
+    "avg_communication_score": 88,
+    "avg_problem_solving_score": 90,
+    "avg_confidence_score": 90,
+    "top_strengths": [],
+    "areas_for_improvement": [],
+    "final_recommendation": "Highly Recommended",
+    "created_at": "2026-08-06T13:07:07.212319"
+  },
+  "INTV-5C94D973": {
+    "summary_id": "ISUM-BC97809C",
+    "interview_id": "INTV-5C94D973",
+    "candidate_id": "CAND-RAHUL",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-83A455",
+    "overall_interview_score": 90,
+    "avg_technical_score": 91,
+    "avg_communication_score": 88,
+    "avg_problem_solving_score": 90,
+    "avg_confidence_score": 90,
+    "top_strengths": [],
+    "areas_for_improvement": [],
+    "final_recommendation": "Highly Recommended",
+    "created_at": "2026-08-06T13:07:49.225071",
+    "_id": "6a74872509cec5ca1725caf6"
+  },
+  "INTV-791BBF04": {
+    "summary_id": "ISUM-FB06F5B4",
+    "interview_id": "INTV-791BBF04",
+    "candidate_id": "CAND-RAHUL",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-96FF82",
+    "overall_interview_score": 90,
+    "avg_technical_score": 91,
+    "avg_communication_score": 88,
+    "avg_problem_solving_score": 90,
+    "avg_confidence_score": 90,
+    "top_strengths": [],
+    "areas_for_improvement": [],
+    "final_recommendation": "Highly Recommended",
+    "created_at": "2026-08-06T13:09:07.967996",
+    "_id": "6a748774162d903c25520097"
+  },
+  "INTV-8059CFD4": {
+    "summary_id": "ISUM-2400B07A",
+    "interview_id": "INTV-8059CFD4",
+    "candidate_id": "CAND-RAHUL",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-CFF976",
+    "overall_interview_score": 70,
+    "avg_technical_score": 68,
+    "avg_communication_score": 72,
+    "avg_problem_solving_score": 70,
+    "avg_confidence_score": 74,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-06T13:09:27.341393",
+    "_id": "6a748787162d903c255200ba"
+  },
+  "INTV-6C83C34D": {
+    "summary_id": "ISUM-EBB49B20",
+    "interview_id": "INTV-6C83C34D",
+    "candidate_id": "CAND-VOICE-USER",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-4D6FB4",
+    "overall_interview_score": 70,
+    "avg_technical_score": 68,
+    "avg_communication_score": 72,
+    "avg_problem_solving_score": 71,
+    "avg_confidence_score": 74,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-06T13:09:31.785858",
+    "_id": "6a74878b162d903c255200c5"
+  },
+  "INTV-AA6FE3A3": {
+    "summary_id": "ISUM-ABD3D852",
+    "interview_id": "INTV-AA6FE3A3",
+    "candidate_id": "CAND-VOICE-USER",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-775AFF",
+    "overall_interview_score": 74,
+    "avg_technical_score": 72,
+    "avg_communication_score": 74,
+    "avg_problem_solving_score": 74,
+    "avg_confidence_score": 77,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-06T13:09:33.715049",
+    "_id": "6a74878d162d903c255200cb"
+  },
+  "INTV-9C2FC4B7": {
+    "summary_id": "ISUM-CB6E03C9",
+    "interview_id": "INTV-9C2FC4B7",
+    "candidate_id": "6a75b910393e8e7b45d8db5b",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-56845F",
+    "overall_interview_score": 87,
+    "avg_technical_score": 87,
+    "avg_communication_score": 87,
+    "avg_problem_solving_score": 87,
+    "avg_confidence_score": 87,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Highly Recommended",
+    "created_at": "2026-08-07T11:03:48.008437",
+    "_id": "6a75bb94722881bd78ccbc08"
+  }
+}
