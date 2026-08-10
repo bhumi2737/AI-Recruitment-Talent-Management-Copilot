@@ -1,0 +1,281 @@
+[
+  {
+    "test_id": "TC-RP-01",
+    "module": "Resume Parser",
+    "test_case": "DOCX Resume Upload & Extraction",
+    "expected": "Extract name, email, phone, skills, education, experience",
+    "actual": "Extracted: Name='Jane Doe', Skills=9",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-RP-02",
+    "module": "Resume Parser",
+    "test_case": "Invalid File Type (.txt)",
+    "expected": "Raise ValueError on unsupported file type",
+    "actual": "Handled correctly: Unsupported file format. Please upload a PDF or DOCX file.",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-RP-03",
+    "module": "Resume Parser",
+    "test_case": "Empty File Handling",
+    "expected": "Handle empty buffer without crash",
+    "actual": "Exception: Cannot read an empty file",
+    "status": "\u2705 PASS",
+    "issue": "Gracefully caught exception: Cannot read an empty file"
+  },
+  {
+    "test_id": "TC-RP-04",
+    "module": "Resume Parser",
+    "test_case": "Extraction Accuracy Calculation",
+    "expected": "Return 100.0% for fully populated fields",
+    "actual": "Accuracy: 100.0%",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-RP-05",
+    "module": "Resume Parser",
+    "test_case": "DB Candidate Save & ATS Scoring",
+    "expected": "Save candidate app and calculate ATS score",
+    "actual": "Saved with ATS score: 80.0, Rec: Highly Recommended",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-JD-01",
+    "module": "Job / JD",
+    "test_case": "Create & Retrieve Job",
+    "expected": "Create job and retrieve exact details",
+    "actual": "Created job ID: JOB-F0FD74",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-JD-02",
+    "module": "Job / JD",
+    "test_case": "Edit Existing Job",
+    "expected": "Update salary and location successfully",
+    "actual": "Updated salary: $160,000",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-JD-03",
+    "module": "Job / JD",
+    "test_case": "Candidate-JD Matching & Skill Calculation",
+    "expected": "Calculate score and matching skills",
+    "actual": "ATS Score: 50, Matched: ['AWS', 'Docker', 'Kubernetes']",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-JD-04",
+    "module": "Job / JD",
+    "test_case": "Job with Empty / Missing Fields",
+    "expected": "Handle empty skills/description without crashing",
+    "actual": "Match result handling score: 70",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-CD-01",
+    "module": "Candidate Dashboard",
+    "test_case": "Candidate Listing Retrieval",
+    "expected": "Retrieve candidate application list",
+    "actual": "Retrieved 11 applications",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-CD-02",
+    "module": "Candidate Dashboard",
+    "test_case": "Candidate Stage Update & Persistence",
+    "expected": "Update recruiter decision and persist state",
+    "actual": "Updated stage: Shortlisted",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-CD-03",
+    "module": "Candidate Dashboard",
+    "test_case": "Recruiter Screening Override Controls",
+    "expected": "Set recruiter override flag to true",
+    "actual": "Override active",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-IA-01",
+    "module": "Interview Assignment",
+    "test_case": "Assign Interview & Link Candidate/Job",
+    "expected": "Assign interview questions, duration, due date, update app status",
+    "actual": "Assigned interview INTV-21A2AB33, app status: Assigned",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-VI-01",
+    "module": "Voice Interview",
+    "test_case": "AI Interview Greeting & Prompting",
+    "expected": "Greet candidate by name and role",
+    "actual": "Greeting generated: 'Hello Bob Vance.\n\nWelcome to your interv...'",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-VI-02",
+    "module": "Voice Interview",
+    "test_case": "AI Follow-Up & Adaptive Q&A Engine",
+    "expected": "Generate relevant follow-up question and AI reasoning",
+    "actual": "Next Q: 'Can you explain how you would optimize t...', Reasoning: 'The candidate has demonstrated...'",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-VI-03",
+    "module": "Voice Interview",
+    "test_case": "Voice Input & Whisper Audio Handling",
+    "expected": "Handle short/empty audio input gracefully without crash",
+    "actual": "Handled gracefully: 'Audio recording is too short. Please speak again clearly.'",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-VI-04",
+    "module": "Voice Interview",
+    "test_case": "Read-Only Lock Post-Submission",
+    "expected": "Lock interview status to Submitted post-submission",
+    "actual": "Status locked to Submitted",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-IE-01",
+    "module": "Interview Evaluation",
+    "test_case": "AI Multi-Dimensional Evaluation",
+    "expected": "Calculate technical, communication, problem solving, overall score",
+    "actual": "Scores: Tech=67, Comm=71, Overall=70",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-IE-02",
+    "module": "Interview Evaluation",
+    "test_case": "PDF Report Generation",
+    "expected": "Generate valid PDF bytes (>500B)",
+    "actual": "Generated valid PDF (3100 bytes)",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-RA-01",
+    "module": "Recruitment Analytics",
+    "test_case": "Dashboard KPI Metric Cards",
+    "expected": "Compute Candidates, Jobs, Shortlisted, Interviews, Selected/Rejected, Avg ATS Score",
+    "actual": "Candidates=12, Jobs=98, Shortlisted=7, Intv=7, Selected=4, Rejected=0, AvgScore=65.0",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-RA-02",
+    "module": "Recruitment Analytics",
+    "test_case": "Dynamic Analytics DB Synchronization",
+    "expected": "Reflect stage change dynamically in analytics metric count",
+    "actual": "Updated selected count: 5",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-DB-01",
+    "module": "Database & Fallback",
+    "test_case": "Multi-Tenant Candidate Data Isolation",
+    "expected": "Candidate 1 data never leaks to Candidate 2",
+    "actual": "Verified zero cross-candidate data leakage",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-DB-02",
+    "module": "Database & Fallback",
+    "test_case": "Offline JSON Storage Fallback Mode",
+    "expected": "Read/write offline cache gracefully when DB connection is offline",
+    "actual": "Offline storage functional, items: 4",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-E2E-01",
+    "module": "End-to-End Integration",
+    "test_case": "Full 14-Step Recruitment Workflow",
+    "expected": "Execute full workflow (Upload -> JD Match -> Interview -> Voice AI Turn -> Submission -> Evaluation -> PDF -> Stage -> Analytics)",
+    "actual": "Full workflow completed successfully in 4.38 seconds",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-UI-01",
+    "module": "UI/UX",
+    "test_case": "Candidate Timeline Stepper Component",
+    "expected": "Render 5-stage timeline stepper HTML",
+    "actual": "Stepper HTML rendered cleanly",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-UI-02",
+    "module": "UI/UX",
+    "test_case": "Streamlit Theme Configuration",
+    "expected": "Include theme configuration for dark/light contrast",
+    "actual": "config.toml exists and configured",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-EH-01",
+    "module": "Error Handling",
+    "test_case": "Non-Existent Candidate ID Lookup",
+    "expected": "Return empty list without crash or NullPointer exception",
+    "actual": "Returned [] gracefully",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-EH-02",
+    "module": "Error Handling",
+    "test_case": "Non-Existent Job ID Lookup",
+    "expected": "Return None without crash",
+    "actual": "Returned None gracefully",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-EH-03",
+    "module": "Error Handling",
+    "test_case": "Empty Dict Inputs to Application Engine",
+    "expected": "Return ok=False with clear error message",
+    "actual": "Handled gracefully: 'Invalid candidate or job information.'",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-PF-01",
+    "module": "Performance Testing",
+    "test_case": "Candidate-JD Match Calculation Latency",
+    "expected": "Average matching latency < 50ms per candidate",
+    "actual": "Avg Latency: 1.39 ms (50 iterations)",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  },
+  {
+    "test_id": "TC-PF-02",
+    "module": "Performance Testing",
+    "test_case": "DB Candidate Applications Batch Query Latency",
+    "expected": "Average batch query latency < 100ms",
+    "actual": "Avg Latency: 34.59 ms (20 iterations)",
+    "status": "\u2705 PASS",
+    "issue": "None"
+  }
+]

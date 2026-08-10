@@ -2015,5 +2015,547 @@
     ],
     "updated_at": "2026-08-07T11:03:46.296114",
     "submitted_time": "2026-08-07T11:03:46.296114"
+  },
+  "INTV-F7838C68": {
+    "interview_id": "INTV-F7838C68",
+    "candidate_id": "CAND-RAHUL",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-5993AE",
+    "generated_questions": [
+      "Explain FastAPI dependency injection.",
+      "How do you optimize Docker containers?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:12.818678",
+    "due_date": "2026-08-15",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "FastAPI uses Depends() for dependency injection.",
+      "1": "Multi-stage builds and minimal base images like alpine."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:13.261011",
+    "submitted_time": "2026-08-10T14:49:13.261011"
+  },
+  "INTV-F981F026": {
+    "interview_id": "INTV-F981F026",
+    "candidate_id": "CAND-STRONG",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-38981C",
+    "generated_questions": [
+      "Explain React hooks."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:20.710458",
+    "due_date": "2026-08-20",
+    "interview_status": "Assigned",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:20.710458"
+  },
+  "INTV-CC23F2E2": {
+    "interview_id": "INTV-CC23F2E2",
+    "candidate_id": "CAND-RAHUL",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-32FB1A",
+    "generated_questions": [
+      "Tell me about your background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:21.997546",
+    "due_date": "2026-08-15",
+    "interview_status": "Assigned",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:21.997546"
+  },
+  "INTV-BE4E9EFD": {
+    "interview_id": "INTV-BE4E9EFD",
+    "candidate_id": "CAND-RAHUL",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-92B6BE",
+    "generated_questions": [
+      "Tell me about your background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:25.595113",
+    "due_date": "2026-08-15",
+    "interview_status": "Assigned",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:25.595113"
+  },
+  "INTV-83AF48A1": {
+    "interview_id": "INTV-83AF48A1",
+    "candidate_id": "CAND-RAHUL",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-FEE963",
+    "generated_questions": [
+      "Tell me about your background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:28.898540",
+    "due_date": "2026-08-15",
+    "interview_status": "Assigned",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:28.898540"
+  },
+  "INTV-6FA8AD4E": {
+    "interview_id": "INTV-6FA8AD4E",
+    "candidate_id": "CAND-RAHUL",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-79C99D",
+    "generated_questions": [
+      "Tell me about your background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:29.717610",
+    "due_date": "2026-08-15",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I used Docker for containerization.",
+      "1": "Using Depends and Pydantic schemas.",
+      "2": "Used B-tree indexes for fast queries."
+    },
+    "conversation_history": [
+      {
+        "question": "Tell me about Docker.",
+        "answer": "I used Docker for containerization.",
+        "timestamp": "2026-08-10T14:49:30.067575",
+        "ai_reasoning": "Good knowledge"
+      },
+      {
+        "question": "How do you build FastAPI apps?",
+        "answer": "Using Depends and Pydantic schemas.",
+        "timestamp": "2026-08-10T14:49:30.140229",
+        "ai_reasoning": "Strong knowledge"
+      },
+      {
+        "question": "What is PostgreSQL indexing?",
+        "answer": "Used B-tree indexes for fast queries.",
+        "timestamp": "2026-08-10T14:49:30.224197",
+        "ai_reasoning": "Deep knowledge"
+      }
+    ],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:30.407840",
+    "submitted_time": "2026-08-10T14:49:30.407840"
+  },
+  "INTV-35A27199": {
+    "interview_id": "INTV-35A27199",
+    "candidate_id": "CAND-RAHUL",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-BB1E6B",
+    "generated_questions": [
+      "Tell me about your background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:32.871899",
+    "due_date": "2026-08-15",
+    "interview_status": "In Progress",
+    "draft_answers": {},
+    "conversation_history": [
+      {
+        "question": "Tell me about Docker.",
+        "answer": "I have used Docker in one project.",
+        "timestamp": "2026-08-10T14:49:33.213036",
+        "ai_reasoning": "Candidate indicated practical experience with Docker. Asking follow-up on CLI commands."
+      }
+    ],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:33.213036"
+  },
+  "INTV-B8A0C8A2": {
+    "interview_id": "INTV-B8A0C8A2",
+    "candidate_id": "CAND-VOICE-USER",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-1DCD61",
+    "generated_questions": [
+      "Tell me about your AI background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:33.796590",
+    "due_date": "2026-08-25",
+    "interview_status": "Assigned",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:49:33.796590"
+  },
+  "INTV-D5407092": {
+    "interview_id": "INTV-D5407092",
+    "candidate_id": "CAND-VOICE-USER",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-93BDEB",
+    "generated_questions": [
+      "Tell me about your AI background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:35.018749",
+    "due_date": "2026-08-25",
+    "interview_status": "In Progress",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [
+      {
+        "message_id": "MSG-6516760A",
+        "interview_id": "INTV-D5407092",
+        "sender": "AI",
+        "message_text": "What are your core strengths?",
+        "timestamp": "2026-08-10T14:49:35.856738",
+        "is_voice": false,
+        "ai_reasoning": "Intro"
+      },
+      {
+        "message_id": "MSG-EE8AC4D6",
+        "interview_id": "INTV-D5407092",
+        "sender": "Candidate",
+        "message_text": "Strong PyTorch and FastAPI experience.",
+        "timestamp": "2026-08-10T14:49:35.989736",
+        "is_voice": true,
+        "ai_reasoning": ""
+      }
+    ],
+    "updated_at": "2026-08-10T14:49:35.989736"
+  },
+  "INTV-83D6EBBB": {
+    "interview_id": "INTV-83D6EBBB",
+    "candidate_id": "CAND-VOICE-USER",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-57EBA5",
+    "generated_questions": [
+      "Tell me about your AI background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:38.985554",
+    "due_date": "2026-08-25",
+    "interview_status": "In Progress",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [
+      {
+        "message_id": "MSG-6BD5003F",
+        "interview_id": "INTV-83D6EBBB",
+        "sender": "AI",
+        "message_text": "Explain how you handle model latency in production.",
+        "timestamp": "2026-08-10T14:49:39.627727",
+        "is_voice": false,
+        "ai_reasoning": "Latency question"
+      },
+      {
+        "message_id": "MSG-EE6C2C63",
+        "interview_id": "INTV-83D6EBBB",
+        "sender": "Candidate",
+        "message_text": "We optimized inference by using model quantization and TensorRT caching.",
+        "timestamp": "2026-08-10T14:49:39.706583",
+        "is_voice": true,
+        "ai_reasoning": ""
+      },
+      {
+        "message_id": "MSG-1F87E1E0",
+        "interview_id": "INTV-83D6EBBB",
+        "sender": "AI",
+        "message_text": "Excellent. How did you monitor model drift?",
+        "timestamp": "2026-08-10T14:49:39.801315",
+        "is_voice": false,
+        "ai_reasoning": "Follow up"
+      },
+      {
+        "message_id": "MSG-C426F221",
+        "interview_id": "INTV-83D6EBBB",
+        "sender": "Candidate",
+        "message_text": "We tracked embedding distribution shifts using Evidently AI and Prometheus alerts.",
+        "timestamp": "2026-08-10T14:49:39.976472",
+        "is_voice": false,
+        "ai_reasoning": ""
+      }
+    ],
+    "updated_at": "2026-08-10T14:49:39.976472"
+  },
+  "INTV-99EB307A": {
+    "interview_id": "INTV-99EB307A",
+    "candidate_id": "CAND-VOICE-USER",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-BC9C2C",
+    "generated_questions": [
+      "Tell me about your AI background."
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:49:42.151031",
+    "due_date": "2026-08-25",
+    "interview_status": "In Progress",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [
+      {
+        "message_id": "MSG-639716CC",
+        "interview_id": "INTV-99EB307A",
+        "sender": "AI",
+        "message_text": "Tell me about your experience with PyTorch and Whisper.",
+        "timestamp": "2026-08-10T14:49:42.626480",
+        "is_voice": false,
+        "ai_reasoning": "Opening technical skill question."
+      },
+      {
+        "message_id": "MSG-5CF46C82",
+        "interview_id": "INTV-99EB307A",
+        "sender": "Candidate",
+        "message_text": "I have built voice recognition pipelines using Whisper and PyTorch.",
+        "timestamp": "2026-08-10T14:49:42.707355",
+        "is_voice": true,
+        "ai_reasoning": ""
+      }
+    ],
+    "updated_at": "2026-08-10T14:49:42.707355"
+  },
+  "INTV-5FB8E2DF": {
+    "interview_id": "INTV-5FB8E2DF",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-1F1624",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:50:55.031119",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:50:56.957201",
+    "submitted_time": "2026-08-10T14:50:56.957201"
+  },
+  "INTV-B7EEF99A": {
+    "interview_id": "INTV-B7EEF99A",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-3BB6EF",
+    "generated_questions": [
+      "How do you optimize the performance of a React application, and what role does TypeScript play in this process?",
+      "Tell me about a time when you had to work with a designer to implement a complex UI component. How did you ensure that your implementation met the design requirements?",
+      "Suppose you are tasked with building a responsive website using React, TypeScript, CSS, and HTML. How would you approach this project, and what considerations would you keep in mind to ensure cross-browser compatibility?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:52:12.676055",
+    "due_date": "2026-08-30",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I use useState and useEffect."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:52:14.943533",
+    "submitted_time": "2026-08-10T14:52:14.943533"
+  },
+  "INTV-0D1AA090": {
+    "interview_id": "INTV-0D1AA090",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-F8BA17",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:52:17.427002",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:52:19.717241",
+    "submitted_time": "2026-08-10T14:52:19.717241"
+  },
+  "INTV-1BE51D72": {
+    "interview_id": "INTV-1BE51D72",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-8BC507",
+    "generated_questions": [
+      "Can you explain the difference between a controlled component and an uncontrolled component in React, and provide an example of when you would use each?",
+      "Tell me about a time when you had to work with a designer to implement a complex UI component. How did you ensure that your implementation met the design requirements and what was the outcome?",
+      "If you were tasked with optimizing the performance of a React application that uses TypeScript and CSS, what steps would you take and what tools would you use to identify and fix performance bottlenecks?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:53:03.472311",
+    "due_date": "2026-08-30",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I use useState and useEffect."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:53:05.758882",
+    "submitted_time": "2026-08-10T14:53:05.758882"
+  },
+  "INTV-1394C56E": {
+    "interview_id": "INTV-1394C56E",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-1E7780",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:53:08.643053",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:53:10.777150",
+    "submitted_time": "2026-08-10T14:53:10.777150"
+  },
+  "INTV-21A2AB33": {
+    "interview_id": "INTV-21A2AB33",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-FEFD6D",
+    "generated_questions": [
+      "How do you optimize the performance of a React application, and what tools or techniques do you use to identify bottlenecks?",
+      "Tell me about a time when you had to work with a designer to implement a complex UI component. How did you ensure that your implementation met the design requirements, and what was the outcome?",
+      "Suppose you are tasked with building a responsive website using HTML, CSS, and React. How would you approach this project, and what considerations would you keep in mind to ensure a smooth user experience across different devices and screen sizes?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:53:33.709073",
+    "due_date": "2026-08-30",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I use useState and useEffect."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:53:35.853462",
+    "submitted_time": "2026-08-10T14:53:35.853462"
+  },
+  "INTV-B75D2149": {
+    "interview_id": "INTV-B75D2149",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-AB480B",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-10T14:53:38.941048",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-10T14:53:41.115512",
+    "submitted_time": "2026-08-10T14:53:41.115512"
   }
 }

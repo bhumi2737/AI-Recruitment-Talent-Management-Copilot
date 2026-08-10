@@ -1099,5 +1099,654 @@
     "salary": "",
     "job_description": "Building real-time AI agents and voice pipelines.",
     "created_at": "2026-08-06T13:09:34.334953"
+  },
+  "JOB-373035": {
+    "job_id": "JOB-373035",
+    "job_title": "Python Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "Remote",
+    "salary": "$120,000",
+    "job_description": "Building scalable Python backends with FastAPI and Docker.",
+    "created_at": "2026-08-10T14:49:10.042751"
+  },
+  "JOB-685E84": {
+    "job_id": "JOB-685E84",
+    "job_title": "DevOps Engineer",
+    "company_name": "CloudOps Solutions",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD"
+    ],
+    "experience_required": "4+ Years",
+    "location": "Hybrid",
+    "salary": "$130,000",
+    "job_description": "Managing AWS infrastructure, Terraform, Kubernetes, and CI/CD pipelines.",
+    "created_at": "2026-08-10T14:49:10.104877"
+  },
+  "JOB-EE1A87": {
+    "job_id": "JOB-EE1A87",
+    "job_title": "Python Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "Remote",
+    "salary": "$120,000",
+    "job_description": "Building scalable Python backends with FastAPI and Docker.",
+    "created_at": "2026-08-10T14:49:11.429782"
+  },
+  "JOB-D55757": {
+    "job_id": "JOB-D55757",
+    "job_title": "DevOps Engineer",
+    "company_name": "CloudOps Solutions",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD"
+    ],
+    "experience_required": "4+ Years",
+    "location": "Hybrid",
+    "salary": "$130,000",
+    "job_description": "Managing AWS infrastructure, Terraform, Kubernetes, and CI/CD pipelines.",
+    "created_at": "2026-08-10T14:49:11.500644"
+  },
+  "JOB-5993AE": {
+    "job_id": "JOB-5993AE",
+    "job_title": "Python Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "Remote",
+    "salary": "$120,000",
+    "job_description": "Building scalable Python backends with FastAPI and Docker.",
+    "created_at": "2026-08-10T14:49:12.317691"
+  },
+  "JOB-18A456": {
+    "job_id": "JOB-18A456",
+    "job_title": "DevOps Engineer",
+    "company_name": "CloudOps Solutions",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD"
+    ],
+    "experience_required": "4+ Years",
+    "location": "Hybrid",
+    "salary": "$130,000",
+    "job_description": "Managing AWS infrastructure, Terraform, Kubernetes, and CI/CD pipelines.",
+    "created_at": "2026-08-10T14:49:12.404799"
+  },
+  "JOB-D80F5D": {
+    "job_id": "JOB-D80F5D",
+    "job_title": "Python Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "Remote",
+    "salary": "$120,000",
+    "job_description": "Building scalable Python backends with FastAPI and Docker.",
+    "created_at": "2026-08-10T14:49:14.841423"
+  },
+  "JOB-670F28": {
+    "job_id": "JOB-670F28",
+    "job_title": "DevOps Engineer",
+    "company_name": "CloudOps Solutions",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD"
+    ],
+    "experience_required": "4+ Years",
+    "location": "Hybrid",
+    "salary": "$130,000",
+    "job_description": "Managing AWS infrastructure, Terraform, Kubernetes, and CI/CD pipelines.",
+    "created_at": "2026-08-10T14:49:14.938577"
+  },
+  "JOB-1B0E6B": {
+    "job_id": "JOB-1B0E6B",
+    "job_title": "Python Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "Remote",
+    "salary": "$120,000",
+    "job_description": "Building scalable Python backends with FastAPI and Docker.",
+    "created_at": "2026-08-10T14:49:16.792354"
+  },
+  "JOB-7740A9": {
+    "job_id": "JOB-7740A9",
+    "job_title": "DevOps Engineer",
+    "company_name": "CloudOps Solutions",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD"
+    ],
+    "experience_required": "4+ Years",
+    "location": "Hybrid",
+    "salary": "$130,000",
+    "job_description": "Managing AWS infrastructure, Terraform, Kubernetes, and CI/CD pipelines.",
+    "created_at": "2026-08-10T14:49:16.945916"
+  },
+  "JOB-29E600": {
+    "job_id": "JOB-29E600",
+    "job_title": "Fullstack Engineer",
+    "company_name": "CloudTech Corp",
+    "required_skills": [
+      "React",
+      "Python",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Fullstack web app development with React and Python.",
+    "created_at": "2026-08-10T14:49:19.454794"
+  },
+  "JOB-38981C": {
+    "job_id": "JOB-38981C",
+    "job_title": "Fullstack Engineer",
+    "company_name": "CloudTech Corp",
+    "required_skills": [
+      "React",
+      "Python",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Fullstack web app development with React and Python.",
+    "created_at": "2026-08-10T14:49:20.270477"
+  },
+  "JOB-F6FE59": {
+    "job_id": "JOB-F6FE59",
+    "job_title": "Fullstack Engineer",
+    "company_name": "CloudTech Corp",
+    "required_skills": [
+      "React",
+      "Python",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Fullstack web app development with React and Python.",
+    "created_at": "2026-08-10T14:49:21.195716"
+  },
+  "JOB-32FB1A": {
+    "job_id": "JOB-32FB1A",
+    "job_title": "Python Backend Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building backends using Python, FastAPI, Docker, and PostgreSQL.",
+    "created_at": "2026-08-10T14:49:21.589837"
+  },
+  "JOB-92B6BE": {
+    "job_id": "JOB-92B6BE",
+    "job_title": "Python Backend Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building backends using Python, FastAPI, Docker, and PostgreSQL.",
+    "created_at": "2026-08-10T14:49:24.274133"
+  },
+  "JOB-FEE963": {
+    "job_id": "JOB-FEE963",
+    "job_title": "Python Backend Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building backends using Python, FastAPI, Docker, and PostgreSQL.",
+    "created_at": "2026-08-10T14:49:28.202651"
+  },
+  "JOB-79C99D": {
+    "job_id": "JOB-79C99D",
+    "job_title": "Python Backend Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building backends using Python, FastAPI, Docker, and PostgreSQL.",
+    "created_at": "2026-08-10T14:49:29.300693"
+  },
+  "JOB-BB1E6B": {
+    "job_id": "JOB-BB1E6B",
+    "job_title": "Python Backend Developer",
+    "company_name": "Tech Corp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "Docker",
+      "PostgreSQL"
+    ],
+    "experience_required": "3+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building backends using Python, FastAPI, Docker, and PostgreSQL.",
+    "created_at": "2026-08-10T14:49:32.456476"
+  },
+  "JOB-1DCD61": {
+    "job_id": "JOB-1DCD61",
+    "job_title": "AI Platform Engineer",
+    "company_name": "DeepTech Labs",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "Groq API"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building real-time AI agents and voice pipelines.",
+    "created_at": "2026-08-10T14:49:33.355245"
+  },
+  "JOB-93BDEB": {
+    "job_id": "JOB-93BDEB",
+    "job_title": "AI Platform Engineer",
+    "company_name": "DeepTech Labs",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "Groq API"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building real-time AI agents and voice pipelines.",
+    "created_at": "2026-08-10T14:49:34.184869"
+  },
+  "JOB-57EBA5": {
+    "job_id": "JOB-57EBA5",
+    "job_title": "AI Platform Engineer",
+    "company_name": "DeepTech Labs",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "Groq API"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building real-time AI agents and voice pipelines.",
+    "created_at": "2026-08-10T14:49:37.884775"
+  },
+  "JOB-BC9C2C": {
+    "job_id": "JOB-BC9C2C",
+    "job_title": "AI Platform Engineer",
+    "company_name": "DeepTech Labs",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "Groq API"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building real-time AI agents and voice pipelines.",
+    "created_at": "2026-08-10T14:49:41.207255"
+  },
+  "JOB-DBFCAF": {
+    "job_id": "JOB-DBFCAF",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-10T14:50:51.745643"
+  },
+  "JOB-D0589D": {
+    "job_id": "JOB-D0589D",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-10T14:50:52.066831"
+  },
+  "JOB-8506CD": {
+    "job_id": "JOB-8506CD",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:50:52.340962"
+  },
+  "JOB-841D9E": {
+    "job_id": "JOB-841D9E",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:50:52.445623"
+  },
+  "JOB-1F1624": {
+    "job_id": "JOB-1F1624",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-10T14:50:54.588198"
+  },
+  "JOB-75D4CF": {
+    "job_id": "JOB-75D4CF",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-10T14:52:08.257585"
+  },
+  "JOB-582D9C": {
+    "job_id": "JOB-582D9C",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-10T14:52:08.982101"
+  },
+  "JOB-123CDE": {
+    "job_id": "JOB-123CDE",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:52:09.241682"
+  },
+  "JOB-3BB6EF": {
+    "job_id": "JOB-3BB6EF",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:52:09.983207"
+  },
+  "JOB-F8BA17": {
+    "job_id": "JOB-F8BA17",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-10T14:52:16.584138"
+  },
+  "JOB-C4D298": {
+    "job_id": "JOB-C4D298",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-10T14:53:00.018871"
+  },
+  "JOB-1F1FFB": {
+    "job_id": "JOB-1F1FFB",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-10T14:53:00.348568"
+  },
+  "JOB-8EA3FD": {
+    "job_id": "JOB-8EA3FD",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:53:00.599905"
+  },
+  "JOB-8BC507": {
+    "job_id": "JOB-8BC507",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:53:01.323178"
+  },
+  "JOB-1E7780": {
+    "job_id": "JOB-1E7780",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-10T14:53:08.192070"
+  },
+  "JOB-BD86FF": {
+    "job_id": "JOB-BD86FF",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-10T14:53:30.076968"
+  },
+  "JOB-F0FD74": {
+    "job_id": "JOB-F0FD74",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-10T14:53:30.405534"
+  },
+  "JOB-096578": {
+    "job_id": "JOB-096578",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:53:30.694762"
+  },
+  "JOB-FEFD6D": {
+    "job_id": "JOB-FEFD6D",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-10T14:53:31.417661"
+  },
+  "JOB-AB480B": {
+    "job_id": "JOB-AB480B",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-10T14:53:38.018313"
   }
 }

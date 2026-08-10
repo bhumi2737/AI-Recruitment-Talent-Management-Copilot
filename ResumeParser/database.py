@@ -99,7 +99,54 @@ def get_mongo_client(timeout_ms: int = 2000):
         kwargs["tlsAllowInvalidCertificates"] = True
 
     _cached_mongo_client = _pymongo.MongoClient(MONGO_CONFIG["uri"], **kwargs)
+    ensure_db_indexes(_cached_mongo_client[MONGO_CONFIG["dbname"]])
     return UnclosableClientWrapper(_cached_mongo_client)
+
+
+_indexes_created = False
+
+def ensure_db_indexes(database_inst=None):
+    """Safely initialize MongoDB indexes on startup if connected."""
+    global _indexes_created
+    if _indexes_created:
+        return
+    try:
+        if database_inst is None:
+            with get_mongo_client() as client:
+                database_inst = client[MONGO_CONFIG["dbname"]]
+        
+        # Candidates collection indexes
+        cand_col = database_inst[MONGO_CONFIG["collection"]]
+        cand_col.create_index("candidate_id", background=True, sparse=True)
+        cand_col.create_index("email", background=True, sparse=True)
+        cand_col.create_index("resume_hash", background=True, sparse=True)
+
+        # Applications collection indexes
+        app_col = database_inst["applications"]
+        app_col.create_index([("candidate_id", 1), ("job_id", 1)], background=True)
+        app_col.create_index("application_id", background=True, sparse=True)
+        app_col.create_index("status", background=True)
+        app_col.create_index("final_decision", background=True)
+
+        # Jobs collection indexes
+        job_col = database_inst["jobs"]
+        job_col.create_index("job_id", background=True, sparse=True)
+        job_col.create_index("status", background=True)
+
+        # Interviews collection indexes
+        intv_col = database_inst["interviews"]
+        intv_col.create_index("interview_id", background=True, sparse=True)
+        intv_col.create_index("candidate_id", background=True)
+        intv_col.create_index("job_id", background=True)
+        intv_col.create_index("interview_status", background=True)
+
+        # Evaluations collection indexes
+        database_inst["interview_evaluations"].create_index("interview_id", background=True)
+        database_inst["interview_summaries"].create_index("interview_id", background=True)
+        
+        _indexes_created = True
+    except Exception:
+        pass
 
 
 def test_connection() -> tuple[bool, str]:

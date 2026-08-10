@@ -92,12 +92,26 @@ def check_experience_match(candidate_exp_text: str, jd_exp_text: str) -> tuple[f
         return 0.4, f"Experience alignment: Candidate has {cand_years} years, which is significantly below the requested {req_years}+ years."
 
 
+_MATCH_CACHE: dict[str, dict[str, Any]] = {}
+
+def clear_match_cache():
+    """Clear in-memory Candidate-JD match calculation cache."""
+    global _MATCH_CACHE
+    _MATCH_CACHE.clear()
+
+
 def calculate_candidate_score(candidate: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
     """
     Evaluates a candidate profile against a structured Job Description.
     Calculates detailed ATS score, skill match %, missing skills, and recommendations.
+    Uses deterministic in-memory caching to prevent duplicate score recalculations.
     """
     job_id = job.get("job_id", "Unknown Job")
+    cand_id = candidate.get("candidate_id") or candidate.get("email") or str(candidate.get("skills", []))
+    cache_key = f"{cand_id}::{job_id}"
+    
+    if cache_key in _MATCH_CACHE:
+        return dict(_MATCH_CACHE[cache_key])
 
     # 1. Skill Match Calculations
     candidate_skills = normalize_candidate_skills(candidate.get("skills", []))
