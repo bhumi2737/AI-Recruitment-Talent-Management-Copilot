@@ -1,0 +1,60 @@
+{
+  "USR-6C3982FA": {
+    "user_id": "USR-6C3982FA",
+    "email": "admin@copilot.com",
+    "full_name": "Admin Recruiter",
+    "password_hash": "$2b$12$GOE/EKeABApu/ncMGCoUwOSvkOi1Wa3JqB5RmiYKuj5FkQJyZcnXO",
+    "role": "admin",
+    "created_at": "2026-08-14T12:38:29.457406+00:00",
+    "updated_at": "2026-08-14T12:38:29.457406+00:00"
+  },
+  "USR-39A77F01": {
+    "user_id": "USR-39A77F01",
+    "email": "bhumiuppal@gmail.com",
+    "full_name": "Bhumi Uppal",
+    "password_hash": "$2b$12$1LhcxgpoqTZTQrZjZqf.v.Ksu5r0x8VgEbGVei2GtVcigFAoQzXXK",
+    "role": "admin",
+    "created_at": "2026-08-14T12:40:25.575794+00:00",
+    "updated_at": "2026-08-14T12:40:25.575794+00:00"
+  },
+  "USR-A5AC48F2": {
+    "user_id": "USR-A5AC48F2",
+    "candidate_id": "",
+    "email": "shreyadixit@gmail.com",
+    "full_name": "Shreya Dixit",
+    "password_hash": "$2b$12$LlMkLUt7ueg0isBf.FM5..chypsV0mJYXB6gljr8bliPi8diWBGje",
+    "role": "recruiter",
+    "created_at": "2026-08-14T12:51:30.195146+00:00",
+    "updated_at": "2026-08-14T12:51:30.195146+00:00"
+  },
+  "USR-8D7FBB6C": {
+    "user_id": "USR-8D7FBB6C",
+    "candidate_id": "USR-8D7FBB6C",
+    "email": "rahulsharma@gmail.com",
+    "full_name": "Rahul Sharma",
+    "password_hash": "$2b$12$lKW1/vborpsR5ZVzgHgPDuYUFGd8SjGXOm6OhiVvyCnBUzB6Q56M2",
+    "role": "candidate",
+    "created_at": "2026-08-14T12:52:54.897435+00:00",
+    "updated_at": "2026-08-14T12:52:54.897435+00:00"
+  },
+  "USR-B298673C": {
+    "user_id": "USR-B298673C",
+    "candidate_id": "USR-B298673C",
+    "email": "priya.mehta@gmail.com",
+    "full_name": "Priya Mehta",
+    "password_hash": "$2b$12$Cdo.M/takR6fPrb7Z6QIDOtMf.I1mjvPRTz5x7EWE5bY4GVKzHDEy",
+    "role": "candidate",
+    "created_at": "2026-08-14T13:11:27.071994+00:00",
+    "updated_at": "2026-08-14T13:11:27.071994+00:00"
+  },
+  "USR-9A2127A2": {
+    "user_id": "USR-9A2127A2",
+    "candidate_id": "USR-9A2127A2",
+    "email": "priya.mehta@example.com",
+    "full_name": "Priya Mehta",
+    "password_hash": "$2b$12$w06wccZ6uJyJU6R5rUk44.kjRbr5NhkcR43V5ECYgIdWrG77gbTj.",
+    "role": "candidate",
+    "created_at": "2026-08-14T13:14:41.137076+00:00",
+    "updated_at": "2026-08-14T13:14:41.137076+00:00"
+  }
+}

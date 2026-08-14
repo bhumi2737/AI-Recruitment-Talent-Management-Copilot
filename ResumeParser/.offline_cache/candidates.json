@@ -84,5 +84,27 @@
     "created_at": "2026-08-07 10:54:20.678000",
     "updated_at": "2026-08-07 11:04:47.694000",
     "raw_text": "YOUR NAME\nDEVOPS ENGINEER\nCity, India  |  +91-XXXXXXXXXX  |  your.email@example.com  |  LinkedIn  |  GitHub\nPROFESSIONAL SUMMARY\nDevOps Engineer with hands-on experience in cloud infrastructure, CI/CD automation, containerization, infrastructure as code, and deployment workflows. Skilled in AWS, Kubernetes, Terraform, Docker, and CI/CD pipelines, with a strong foundation in Linux, Git, scripting, monitoring, and troubleshooting. Focused on building reliable, scalable, and automated deployment environments.\nTECHNICAL SKILLS\nDEVOPS PROJECTS\nCloud-Native CI/CD Deployment Platform\n\u2022 Designed an automated CI/CD workflow to build, test, containerize, and deploy a web application.\n\u2022 Created Docker images and implemented repeatable deployment steps through a CI/CD pipeline.\n\u2022 Provisioned cloud infrastructure using Terraform and documented environment configuration for reproducible deployments.\n\u2022 Applied Git-based workflow practices and deployment checks to reduce manual release effort.\nKubernetes Application Deployment\n\u2022 Containerized a multi-service application with Docker and prepared Kubernetes manifests for deployment.\n\u2022 Configured Deployments, Services, environment variables, and health checks for reliable application operation.\n\u2022 Investigated container, networking, and deployment failures using logs and Kubernetes diagnostics.\nAWS Infrastructure Automation\n\u2022 Built an AWS deployment environment using core services including EC2, S3, IAM, VPC, and CloudWatch.\n\u2022 Automated infrastructure configuration with Terraform and followed least-privilege IAM practices.\n\u2022 Used monitoring and logs to identify application and infrastructure issues.\nEXPERIENCE\nDevOps / Software Engineering Intern  |  Company Name  |  City, India  |  Month Year \u2013 Month Year\n\u2022 Supported application deployment, environment configuration, Git workflows, and troubleshooting.\n\u2022 Worked with development teams to automate repetitive build and deployment tasks.\n\u2022 Assisted with containerized development environments and CI/CD pipeline maintenance.\n\u2022 Documented deployment procedures, configuration changes, and issue-resolution steps.\nEDUCATION\nB.Tech in Computer Science & Engineering  |  University Name  |  Expected Graduation: 20XX\nRelevant Coursework: Operating Systems, Computer Networks, Database Management Systems, Data Structures & Algorithms\nCERTIFICATIONS\n\u2022 AWS / Cloud Fundamentals \u2013 Certification Name (Year)\n\u2022 Terraform / Kubernetes \u2013 Certification Name (Year)\n\u2022 Linux / DevOps \u2013 Certification Name (Year)\nADDITIONAL\nGitHub: github.com/yourusername   Portfolio: yourportfolio.com"
+  },
+  "6a53961269254e68d40dff00": {
+    "id": "6a53961269254e68d40dff00",
+    "candidate_id": "USR-9A2127A2",
+    "full_name": "Priya Mehta",
+    "email": "priya.mehta@example.com",
+    "phone": "+91 98765 12345",
+    "skills": "Python, PyTorch, Docker, Machine Learning, TensorFlow, Deep Learning, REST APIs, Git, SQL",
+    "education": "M.Tech in Artificial Intelligence | IIT Delhi (2020-2022) | CGPA: 9.3/10\nB.Tech in Computer Science | Delhi University (2016-2020)",
+    "experience": "Senior AI & Machine Learning Engineer | DataVision AI (2022 - Present)\n\u2022 Designed and deployed PyTorch deep learning models for NLP and computer vision.\n\u2022 Containerized microservices using Docker and Python REST APIs.",
+    "certifications": "AWS Certified Machine Learning - Specialty\nDeepLearning.AI TensorFlow Developer Certificate",
+    "projects": "AI Resume & Applicant Screening Engine \u2013 PyTorch, Docker, FastAPI.",
+    "application_status": "Interview",
+    "recruitment_stage": "Interview",
+    "interview_date": "2026-08-14",
+    "interview_time": "7 pm",
+    "interviewer_name": "hr",
+    "recruiter_notes": "Strong candidate with solid PyTorch and Docker expertise. Recommended for AI Engineer role.",
+    "recruiter_feedback": "Excellent technical candidate.",
+    "created_at": "2026-07-12 13:27:57.534000",
+    "updated_at": "2026-08-14 13:33:37.404000",
+    "raw_text": "Priya Mehta\nSenior AI & Machine Learning Engineer\nEmail: priya.mehta@example.com\nSkills: Python, PyTorch, Docker, Machine Learning, Deep Learning, REST APIs, Git, SQL"
   }
 }

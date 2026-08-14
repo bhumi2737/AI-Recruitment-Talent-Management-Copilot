@@ -49,7 +49,7 @@
     "module": "Job / JD",
     "test_case": "Create & Retrieve Job",
     "expected": "Create job and retrieve exact details",
-    "actual": "Created job ID: JOB-F0FD74",
+    "actual": "Created job ID: JOB-E20B93",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -85,7 +85,7 @@
     "module": "Candidate Dashboard",
     "test_case": "Candidate Listing Retrieval",
     "expected": "Retrieve candidate application list",
-    "actual": "Retrieved 11 applications",
+    "actual": "Retrieved 47 applications",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -112,7 +112,7 @@
     "module": "Interview Assignment",
     "test_case": "Assign Interview & Link Candidate/Job",
     "expected": "Assign interview questions, duration, due date, update app status",
-    "actual": "Assigned interview INTV-21A2AB33, app status: Assigned",
+    "actual": "Assigned interview INTV-C40E4880, app status: Assigned",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -130,7 +130,7 @@
     "module": "Voice Interview",
     "test_case": "AI Follow-Up & Adaptive Q&A Engine",
     "expected": "Generate relevant follow-up question and AI reasoning",
-    "actual": "Next Q: 'Can you explain how you would optimize t...', Reasoning: 'The candidate has demonstrated...'",
+    "actual": "Next Q: 'Can you explain how you handle state man...', Reasoning: 'The candidate demonstrated fam...'",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -166,7 +166,7 @@
     "module": "Interview Evaluation",
     "test_case": "PDF Report Generation",
     "expected": "Generate valid PDF bytes (>500B)",
-    "actual": "Generated valid PDF (3100 bytes)",
+    "actual": "Generated valid PDF (3101 bytes)",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -175,7 +175,7 @@
     "module": "Recruitment Analytics",
     "test_case": "Dashboard KPI Metric Cards",
     "expected": "Compute Candidates, Jobs, Shortlisted, Interviews, Selected/Rejected, Avg ATS Score",
-    "actual": "Candidates=12, Jobs=98, Shortlisted=7, Intv=7, Selected=4, Rejected=0, AvgScore=65.0",
+    "actual": "Candidates=48, Jobs=118, Shortlisted=15, Intv=15, Selected=12, Rejected=0, AvgScore=54.5",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -184,7 +184,7 @@
     "module": "Recruitment Analytics",
     "test_case": "Dynamic Analytics DB Synchronization",
     "expected": "Reflect stage change dynamically in analytics metric count",
-    "actual": "Updated selected count: 5",
+    "actual": "Updated selected count: 13",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -211,7 +211,7 @@
     "module": "End-to-End Integration",
     "test_case": "Full 14-Step Recruitment Workflow",
     "expected": "Execute full workflow (Upload -> JD Match -> Interview -> Voice AI Turn -> Submission -> Evaluation -> PDF -> Stage -> Analytics)",
-    "actual": "Full workflow completed successfully in 4.38 seconds",
+    "actual": "Full workflow completed successfully in 6.751 seconds",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -265,7 +265,7 @@
     "module": "Performance Testing",
     "test_case": "Candidate-JD Match Calculation Latency",
     "expected": "Average matching latency < 50ms per candidate",
-    "actual": "Avg Latency: 1.39 ms (50 iterations)",
+    "actual": "Avg Latency: 5.51 ms (50 iterations)",
     "status": "\u2705 PASS",
     "issue": "None"
   },
@@ -274,7 +274,7 @@
     "module": "Performance Testing",
     "test_case": "DB Candidate Applications Batch Query Latency",
     "expected": "Average batch query latency < 100ms",
-    "actual": "Avg Latency: 34.59 ms (20 iterations)",
+    "actual": "Avg Latency: 90.38 ms (20 iterations)",
     "status": "\u2705 PASS",
     "issue": "None"
   }

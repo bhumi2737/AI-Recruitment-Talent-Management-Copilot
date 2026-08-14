@@ -19,6 +19,8 @@ import database as db
 import db_jobs
 import db_interviews
 import db_applications
+import db_auth
+import auth_service
 import ai_question_generator
 import db_question_generator
 import db_question_sets
@@ -513,6 +515,10 @@ def render_html_table(df):
 
 # ── Session state defaults ────────────────────────────────────────────────────
 DEFAULT_SESSION_VALUES = {
+    "authenticated": False,
+    "auth_user": None,
+    "auth_page": "Landing",
+    "jwt_token": None,
     "processed_count": 0,
     "profiles_created": 0,
     "last_profile": None,
@@ -553,6 +559,713 @@ DEFAULT_SESSION_VALUES = {
 for key, value in DEFAULT_SESSION_VALUES.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+
+# ── Public & Authentication Flow Renderers ────────────────────────────────────
+
+def render_public_header():
+    """Render sleek public header bar for unauthenticated landing/login/register pages."""
+    st.markdown('''
+        <style>
+        .pub-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        .pub-logo {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--heading);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .pub-badge {
+            background: linear-gradient(135deg, #3B82F6, #6366F1);
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-left: 0.5rem;
+        }
+        </style>
+    ''', unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns([4, 1.2, 1.2, 1.2])
+    with col1:
+        st.markdown('<div class="pub-logo">🤖 AI Recruitment Copilot <span class="pub-badge">SaaS 2.0</span></div>', unsafe_allow_html=True)
+    with col2:
+        if st.button("🏠 Home", use_container_width=True, key="hdr_btn_home"):
+            st.session_state.auth_page = "Landing"
+            st.rerun()
+    with col3:
+        if st.button("🔑 Sign In", use_container_width=True, key="hdr_btn_login"):
+            st.session_state.auth_page = "Login"
+            st.rerun()
+    with col4:
+        if st.button("✨ Get Started", use_container_width=True, key="hdr_btn_register", type="primary"):
+            st.session_state.auth_page = "Register"
+            st.rerun()
+
+
+def render_landing_page():
+    """Render high-converting, modern public landing page."""
+    render_public_header()
+
+    st.markdown('''
+        <style>
+        .hero-container {
+            text-align: center;
+            padding: 3rem 1.5rem 2rem 1.5rem;
+            background: linear-gradient(180deg, rgba(99, 102, 241, 0.08) 0%, rgba(0, 0, 0, 0) 100%);
+            border-radius: 20px;
+            margin-bottom: 3rem;
+            border: 1px solid var(--border);
+        }
+        .hero-pill {
+            display: inline-block;
+            background: rgba(99, 102, 241, 0.15);
+            color: #6366F1;
+            padding: 0.4rem 1.2rem;
+            border-radius: 9999px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 1.2rem;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        .hero-title {
+            font-size: 3.2rem;
+            font-weight: 800;
+            line-height: 1.15;
+            color: var(--heading);
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+        .hero-subtitle {
+            font-size: 1.2rem;
+            color: var(--text);
+            max-width: 780px;
+            margin: 0 auto 2rem auto;
+            line-height: 1.6;
+        }
+        .hero-stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2.5rem;
+            flex-wrap: wrap;
+        }
+        .hero-stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.8rem;
+            min-width: 180px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+        .hero-stat-num {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+        .hero-stat-label {
+            font-size: 0.85rem;
+            color: var(--muted);
+            font-weight: 600;
+        }
+        .section-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            text-align: center;
+            color: var(--heading);
+            margin-bottom: 0.5rem;
+        }
+        .section-subtitle {
+            font-size: 1.05rem;
+            text-align: center;
+            color: var(--muted);
+            margin-bottom: 2.5rem;
+        }
+        .feat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.6rem;
+            height: 100%;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+        .feat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        .feat-icon {
+            font-size: 2.2rem;
+            margin-bottom: 1rem;
+        }
+        .feat-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--heading);
+            margin-bottom: 0.5rem;
+        }
+        .feat-desc {
+            font-size: 0.92rem;
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .step-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.2rem;
+            text-align: center;
+            position: relative;
+        }
+        .step-num {
+            background: var(--primary);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.9rem;
+            margin: 0 auto 0.8rem auto;
+        }
+        .step-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--heading);
+        }
+        .cta-banner {
+            background: linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 3.5rem 2rem;
+            text-align: center;
+            margin: 3.5rem 0;
+            box-shadow: 0 16px 32px rgba(49, 46, 129, 0.25);
+        }
+        .cta-banner h2 {
+            color: white !important;
+            font-size: 2.4rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+        }
+        .cta-banner p {
+            color: #C7D2FE !important;
+            font-size: 1.15rem;
+            max-width: 650px;
+            margin: 0 auto 2rem auto;
+        }
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 2.5rem 1rem 1.5rem 1rem;
+            margin-top: 4rem;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        </style>
+    ''', unsafe_allow_html=True)
+
+    # Hero Section
+    st.markdown('''
+        <div class="hero-container">
+            <span class="hero-pill">🤖 AI-POWERED TALENT ACQUISITION ENGINE</span>
+            <h1 class="hero-title">Hire Smarter. Recruit Faster.</h1>
+            <p class="hero-subtitle">
+                Streamline your end-to-end recruitment workflow using AI resume parsing, candidate matching, ATS score analysis, skill gap identification, and automated interview question generation.
+            </p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns([1, 1.2, 1])
+    with c2:
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("✨ Get Started", use_container_width=True, type="primary", key="hero_cta_reg"):
+                st.session_state.auth_page = "Register"
+                st.rerun()
+        with col_btn2:
+            if st.button("🔑 Sign In", use_container_width=True, key="hero_cta_login"):
+                st.session_state.auth_page = "Login"
+                st.rerun()
+
+    st.markdown('''
+        <div class="hero-stats-row">
+            <div class="hero-stat-card">
+                <div class="hero-stat-num">98.4%</div>
+                <div class="hero-stat-label">Extraction Accuracy</div>
+            </div>
+            <div class="hero-stat-card">
+                <div class="hero-stat-num">75%</div>
+                <div class="hero-stat-label">Time Saved</div>
+            </div>
+            <div class="hero-stat-card">
+                <div class="hero-stat-num">1,250+</div>
+                <div class="hero-stat-label">Resumes Screened</div>
+            </div>
+            <div class="hero-stat-card">
+                <div class="hero-stat-num">3.2x</div>
+                <div class="hero-stat-label">Faster Hiring Cycle</div>
+            </div>
+        </div>
+        <br><br>
+    ''', unsafe_allow_html=True)
+
+    st.divider()
+
+    # Features Section
+    st.markdown('''
+        <div class="section-title">Core Platform Capabilities</div>
+        <div class="section-subtitle">Intelligent tools designed for high-performance talent acquisition teams</div>
+    ''', unsafe_allow_html=True)
+
+    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+    with f_col1:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">📄</div>
+                <div class="feat-title">AI Resume Parsing</div>
+                <div class="feat-desc">Extract contact details, work history, education, and technical skills instantly from PDF and DOCX files.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with f_col2:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">💼</div>
+                <div class="feat-title">JD Analysis</div>
+                <div class="feat-desc">Automatically analyze job specifications to determine required skills, experience thresholds, and domain criteria.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with f_col3:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">🤝</div>
+                <div class="feat-title">Candidate Matching</div>
+                <div class="feat-desc">Calculate semantic vector match percentages between applicants and open vacancy requirements.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with f_col4:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">📌</div>
+                <div class="feat-title">Application Tracking</div>
+                <div class="feat-desc">Track applicants through a 5-stage recruitment pipeline with status steppers and automated stage transitions.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    f_col5, f_col6, f_col7, f_col8 = st.columns(4)
+    with f_col5:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">📊</div>
+                <div class="feat-title">ATS Score Analysis</div>
+                <div class="feat-desc">Receive detailed candidate compatibility scores, formatting checks, and skill match breakdowns.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with f_col6:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">⚡</div>
+                <div class="feat-title">Skill Gap Analysis</div>
+                <div class="feat-desc">Identify missing technical competencies and receive targeted onboarding/upskilling recommendations.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with f_col7:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">📅</div>
+                <div class="feat-title">Interview Scheduling</div>
+                <div class="feat-desc">Assign custom technical assessment question sets and manage submission deadlines effortlessly.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with f_col8:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">🤖</div>
+                <div class="feat-title">AI Question Generator</div>
+                <div class="feat-desc">Auto-generate customized technical and behavioral interview questions tailored to any job role.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+
+    st.divider()
+
+    # How It Works Section
+    st.markdown('''
+        <div class="section-title">How It Works</div>
+        <div class="section-subtitle">End-to-end automated candidate evaluation workflow</div>
+    ''', unsafe_allow_html=True)
+
+    w_cols = st.columns(7)
+    steps = [
+        ("1", "Upload Resume", "📄"),
+        ("2", "Analyze Candidate", "🔍"),
+        ("3", "Match with JD", "🎯"),
+        ("4", "ATS & Skill Gap", "📊"),
+        ("5", "Select Candidate", "✅"),
+        ("6", "Schedule Interview", "📅"),
+        ("7", "Generate Questions", "🤖"),
+    ]
+    for idx, col in enumerate(w_cols):
+        s_num, s_title, s_icon = steps[idx]
+        with col:
+            st.markdown(f'''
+                <div class="step-card">
+                    <div class="step-num">{s_num}</div>
+                    <div style="font-size:1.5rem; margin-bottom:0.4rem;">{s_icon}</div>
+                    <div class="step-title">{s_title}</div>
+                </div>
+            ''', unsafe_allow_html=True)
+
+    st.divider()
+
+    # Benefits Section
+    st.markdown('''
+        <div class="section-title">Why Use This Platform?</div>
+        <div class="section-subtitle">Proven advantages for talent acquisition leaders and hiring managers</div>
+    ''', unsafe_allow_html=True)
+
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">⚡</div>
+                <div class="feat-title">Faster Candidate Screening</div>
+                <div class="feat-desc">Reduce manual resume reviewing from hours to seconds with automated parsing and structured profile extraction.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with b2:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">🎯</div>
+                <div class="feat-title">AI-Powered Matching</div>
+                <div class="feat-desc">Eliminate bias and rank candidates strictly based on verified skill relevance and experience alignment.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with b3:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">🗂️</div>
+                <div class="feat-title">Centralized Recruitment Hub</div>
+                <div class="feat-desc">Manage resumes, vacancies, applicant pipelines, evaluations, and interview questions in one unified system.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    b4, b5 = st.columns(2)
+    with b4:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">💡</div>
+                <div class="feat-title">Data-Driven Hiring Insights</div>
+                <div class="feat-desc">Gain immediate clarity on candidate fit with multi-dimensional ATS scoring, skill gap radar, and PDF evaluations.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with b5:
+        st.markdown('''
+            <div class="feat-card">
+                <div class="feat-icon">🖐️</div>
+                <div class="feat-title">Reduced Manual Effort</div>
+                <div class="feat-desc">Automate repetitive taskwork like question generation, stage updates, score calculations, and report generation.</div>
+            </div>
+        ''', unsafe_allow_html=True)
+
+    # Final CTA Banner
+    st.markdown('''
+        <div class="cta-banner">
+            <h2>Ready to Elevate Your Hiring Process?</h2>
+            <p>Join modern recruitment teams using AI to source, evaluate, and hire high-performing talent faster than ever.</p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+    cta_c1, cta_c2, cta_c3 = st.columns([1, 1.2, 1])
+    with cta_c2:
+        cb1, cb2 = st.columns(2)
+        with cb1:
+            if st.button("✨ Get Started", use_container_width=True, type="primary", key="cta_bottom_reg"):
+                st.session_state.auth_page = "Register"
+                st.rerun()
+        with cb2:
+            if st.button("🔑 Sign In", use_container_width=True, key="cta_bottom_login"):
+                st.session_state.auth_page = "Login"
+                st.rerun()
+
+    # Footer
+    st.markdown('''
+        <div class="footer">
+            <div style="font-weight:700; color:var(--heading); font-size:1.1rem; margin-bottom:0.5rem;">
+                📋 AI Recruitment & Talent Management Copilot
+            </div>
+            <p style="margin-bottom:1rem;">Next-generation AI recruitment platform powered by advanced NLP and intelligent candidate evaluation.</p>
+            <p>© 2026 AI Recruitment Copilot. All rights reserved. | <a href="#" style="color:var(--primary); text-decoration:none;">GitHub Repository</a> | <a href="#" style="color:var(--primary); text-decoration:none;">Privacy Policy</a></p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+
+def render_register_page():
+    """Render clean, modern user registration page."""
+    render_public_header()
+
+    st.markdown('''
+        <style>
+        .auth-card {
+            max-width: 520px;
+            margin: 1.5rem auto;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem 2.2rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+        .auth-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--heading);
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        .auth-subtitle {
+            font-size: 0.95rem;
+            color: var(--muted);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        </style>
+    ''', unsafe_allow_html=True)
+
+    st.markdown('''
+        <div class="auth-card">
+            <div class="auth-title">Create Your Account</div>
+            <div class="auth-subtitle">Get started with AI Recruitment & Talent Management Copilot</div>
+    ''', unsafe_allow_html=True)
+
+    with st.form("register_form", clear_on_submit=False):
+        role_choice = st.radio(
+            "I am registering as:*",
+            ["🎓 Candidate (Job Seeker)", "💼 Recruiter (Hiring Manager)"],
+            index=0,
+            horizontal=True,
+            help="Candidates apply for jobs & take AI interviews. Recruiters post jobs, parse resumes & evaluate candidates."
+        )
+        selected_role = "recruiter" if "Recruiter" in role_choice else "candidate"
+
+        full_name = st.text_input("👤 Full Name*", placeholder="e.g. Jane Doe")
+        email = st.text_input("✉️ Email Address*", placeholder="e.g. jane@company.com")
+        password = st.text_input("🔒 Password*", type="password", placeholder="At least 6 characters")
+        confirm_password = st.text_input("🔒 Confirm Password*", type="password", placeholder="Re-enter password")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        submit_btn = st.form_submit_button("🚀 Create Account", use_container_width=True, type="primary")
+
+        if submit_btn:
+            with st.spinner("Creating your account..."):
+                ok, msg, user_data = auth_service.register_user(
+                    full_name=full_name,
+                    email=email,
+                    password=password,
+                    confirm_password=confirm_password,
+                    role=selected_role
+                )
+                if ok and user_data:
+                    st.session_state.authenticated = True
+                    st.session_state.auth_user = user_data
+                    st.session_state.jwt_token = user_data.get("token")
+                    if user_data.get("token"):
+                        st.query_params["session_token"] = user_data.get("token")
+                    st.session_state.portal_role = "Candidate" if selected_role == "candidate" else "Recruiter"
+                    st.session_state.auth_page = "Dashboard"
+                    st.session_state.active_page = "Dashboard"
+                    st.session_state.candidate_active_page = "Dashboard"
+                    st.success(f"🎉 Registered successfully as {selected_role.title()}! Redirecting...")
+                    st.rerun()
+                else:
+                    st.error(f"❌ {msg}")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        if st.button("Already have an account? Sign In", use_container_width=True, key="reg_to_login_btn"):
+            st.session_state.auth_page = "Login"
+            st.rerun()
+
+
+def render_login_page():
+    """Render clean, modern user login page."""
+    render_public_header()
+
+    st.markdown('''
+        <style>
+        .auth-card {
+            max-width: 480px;
+            margin: 2rem auto;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem 2.2rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+        .auth-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--heading);
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        .auth-subtitle {
+            font-size: 0.95rem;
+            color: var(--muted);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        </style>
+    ''', unsafe_allow_html=True)
+
+    st.markdown('''
+        <div class="auth-card">
+            <div class="auth-title">Welcome Back</div>
+            <div class="auth-subtitle">Sign in to your AI Recruitment Copilot Dashboard</div>
+    ''', unsafe_allow_html=True)
+
+    with st.form("login_form", clear_on_submit=False):
+        email = st.text_input("✉️ Email Address*", placeholder="e.g. admin@company.com")
+        password = st.text_input("🔒 Password*", type="password", placeholder="Enter your password")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        login_btn = st.form_submit_button("🔑 Sign In", use_container_width=True, type="primary")
+
+        if login_btn:
+            with st.spinner("Authenticating..."):
+                ok, msg, user_data = auth_service.authenticate_user(email=email, password=password)
+                if ok and user_data:
+                    st.session_state.authenticated = True
+                    st.session_state.auth_user = user_data
+                    st.session_state.jwt_token = user_data.get("token")
+                    if user_data.get("token"):
+                        st.query_params["session_token"] = user_data.get("token")
+                    st.session_state.auth_page = "Dashboard"
+                    st.session_state.active_page = "Dashboard"
+                    st.success("🎉 Authentication successful! Redirecting...")
+                    st.rerun()
+                else:
+                    st.error(f"❌ {msg}")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        if st.button("Don't have an account? Create an account", use_container_width=True, key="login_to_reg_btn"):
+            st.session_state.auth_page = "Register"
+            st.rerun()
+
+
+def render_admin_header():
+    """Render top authenticated user profile bar with Logout CTA."""
+    user = st.session_state.get("auth_user") or {}
+    user_name = user.get("full_name", "Admin Recruiter")
+    user_email = user.get("email", "admin@copilot.ai")
+    user_role = (user.get("role") or "ADMIN").upper()
+
+    col1, col2 = st.columns([3.5, 1])
+    with col1:
+        st.markdown(f'''
+            <div style="display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1rem; background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 1rem;">
+                <div style="width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #10B981, #3B82F6); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem;">
+                    {user_name[0].upper() if user_name else "A"}
+                </div>
+                <div>
+                    <div style="font-weight: 700; color: var(--heading); font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem;">
+                        {user_name}
+                        <span style="background: rgba(16, 185, 129, 0.15); color: #10B981; font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 9999px; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 700;">{user_role}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--muted);">{user_email}</div>
+                </div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with col2:
+        if st.button("🚪 Logout", use_container_width=True, key="admin_hdr_logout_btn"):
+            st.session_state.authenticated = False
+            st.session_state.auth_user = None
+            st.session_state.jwt_token = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.session_state.auth_page = "Landing"
+            st.rerun()
+
+
+def check_and_enforce_auth():
+    """Enforce authentication check and handle public vs protected routing."""
+    # Attempt automatic session restoration from persistent session token in query params if reloaded
+    if not st.session_state.get("authenticated", False):
+        try:
+            token = st.query_params.get("session_token")
+            if token:
+                payload = auth_service.verify_access_token(token)
+                if payload and payload.get("email"):
+                    user = db_auth.get_user_by_email(payload["email"])
+                    if user:
+                        user["token"] = token
+                        st.session_state.authenticated = True
+                        st.session_state.auth_user = user
+                        st.session_state.jwt_token = token
+        except Exception:
+            pass
+
+    if not st.session_state.get("authenticated", False):
+        auth_page = st.session_state.get("auth_page", "Landing")
+        if auth_page == "Register":
+            render_register_page()
+        elif auth_page == "Login":
+            render_login_page()
+        else:
+            render_landing_page()
+        st.stop()
+
+    # Automatic role-based portal assignment & route protection
+    user = st.session_state.get("auth_user") or {}
+    user_role = auth_service.normalize_role(user.get("role"))
+
+    if user_role == "candidate":
+        st.session_state.portal_role = "Candidate"
+        recruiter_and_admin_pages = [
+            "Users", "Recruiters", "Admin Profile", "Recruiter Profile",
+            "Resume Upload", "Candidate Pipeline", "Interview Question Generator",
+            "Interview Assignment", "Submitted Interviews", "Job Descriptions",
+            "Candidate Matching", "Candidate Details", "Skill Gap Analysis",
+            "Candidate Ranking", "Executive Reports", "Settings"
+        ]
+        if st.session_state.get("active_page") in recruiter_and_admin_pages:
+            st.session_state.active_page = "Dashboard"
+            st.error("⛔ Access Denied: Candidate accounts cannot access Recruiter/Admin tools.")
+    elif user_role == "recruiter":
+        st.session_state.portal_role = "Recruiter"
+        admin_only_pages = ["Users", "Recruiters", "Admin Profile"]
+        if st.session_state.get("active_page") in admin_only_pages:
+            st.session_state.active_page = "Dashboard"
+            st.error("⛔ Access Denied: Recruiter accounts cannot access Admin-only management tools.")
+    elif user_role == "admin":
+        st.session_state.portal_role = "Admin"
 
 
 def render_stage_badge(stage: str) -> str:
@@ -2303,6 +3016,13 @@ def update_job(job_id: str, job_data: dict[str, Any]) -> tuple[bool, str]:
             
     return False, "Both API and Database are offline. Cannot update job."
 
+
+# ── Authenticated Route Protection & Public Flow ──────────────────────────────
+check_and_enforce_auth()
+
+# Render top admin profile bar for authenticated users
+render_admin_header()
+
 with st.sidebar:
     st.markdown("# 📋 RC Recruitment")
     st.markdown("---")
@@ -2312,25 +3032,83 @@ with st.sidebar:
     text_c = "#CBD5E1" if theme_mode == "Dark" else "#334155"
     bg_sec_c = "#111827" if theme_mode == "Dark" else "#F1F5F9"
     
-    # ── Role Switcher ─────────────────────────────────────────────────────────
-    portal_role = st.radio("👤 Portal Mode", ["Recruiter", "Candidate"], index=0 if st.session_state.portal_role == "Recruiter" else 1, horizontal=True)
-    if portal_role != st.session_state.portal_role:
-        st.session_state.portal_role = portal_role
-        st.rerun()
+    # Automatic Role Assignment from Authenticated User Role
+    user_info = st.session_state.get("auth_user") or {}
+    user_role = (user_info.get("role") or "candidate").lower()
+    st.session_state.portal_role = "Candidate" if user_role == "candidate" else "Recruiter"
 
-    st.markdown("---")
+    # Automatic Role Assignment from Authenticated User Role
+    user_info = st.session_state.get("auth_user") or {}
+    user_role = auth_service.normalize_role(user_info.get("role"))
 
-    if st.session_state.portal_role == "Recruiter":
-        options_list = ["Dashboard", "Resume Upload", "Candidate Pipeline", "Interview Question Generator", "Interview Assignment", "Submitted Interviews", "Job Descriptions", "Candidate Matching", "Candidate Details", "Skill Gap Analysis", "Candidate Ranking", "Executive Reports", "Settings"]
-        icons_list = ["house", "upload", "funnel", "robot", "journal-plus", "file-earmark-check", "briefcase", "handshake", "people", "lightning", "trophy", "file-earmark-text", "gear"]
-        
+    if user_role == "admin":
+        st.session_state.portal_role = "Admin"
+        st.markdown("<div style='font-size:0.75rem; font-weight:800; color:var(--muted); margin-bottom:0.2rem; letter-spacing:0.5px;'>MAIN</div>", unsafe_allow_html=True)
+        if st.button("🏠 Overview", use_container_width=True, type="primary" if st.session_state.active_page == "Dashboard" else "secondary", key="nav_adm_overview"):
+            st.session_state.active_page = "Dashboard"
+            st.rerun()
+
+        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>USER MANAGEMENT</div>", unsafe_allow_html=True)
+        if st.button("👥 Users", use_container_width=True, type="primary" if st.session_state.active_page == "Users" else "secondary", key="nav_adm_users"):
+            st.session_state.active_page = "Users"
+            st.rerun()
+        if st.button("🧑💼 Recruiters", use_container_width=True, type="primary" if st.session_state.active_page == "Recruiters" else "secondary", key="nav_adm_recruiters"):
+            st.session_state.active_page = "Recruiters"
+            st.rerun()
+        if st.button("🧑🎓 Candidates", use_container_width=True, type="primary" if st.session_state.active_page == "Candidate Details" else "secondary", key="nav_adm_cands"):
+            st.session_state.active_page = "Candidate Details"
+            st.rerun()
+
+        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>RECRUITMENT</div>", unsafe_allow_html=True)
+        if st.button("💼 Job Positions", use_container_width=True, type="primary" if st.session_state.active_page == "Job Descriptions" else "secondary", key="nav_adm_jobs"):
+            st.session_state.active_page = "Job Descriptions"
+            st.rerun()
+        if st.button("📄 Applications", use_container_width=True, type="primary" if st.session_state.active_page == "Candidate Pipeline" else "secondary", key="nav_adm_apps"):
+            st.session_state.active_page = "Candidate Pipeline"
+            st.rerun()
+        if st.button("📅 Interviews", use_container_width=True, type="primary" if st.session_state.active_page == "Interview Assignment" else "secondary", key="nav_adm_intvs"):
+            st.session_state.active_page = "Interview Assignment"
+            st.rerun()
+
+        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>ANALYTICS</div>", unsafe_allow_html=True)
+        if st.button("📊 Recruitment Analytics", use_container_width=True, type="primary" if st.session_state.active_page == "Candidate Ranking" else "secondary", key="nav_adm_analytics"):
+            st.session_state.active_page = "Candidate Ranking"
+            st.rerun()
+        if st.button("🤖 AI Activity", use_container_width=True, type="primary" if st.session_state.active_page == "Executive Reports" else "secondary", key="nav_adm_ai"):
+            st.session_state.active_page = "Executive Reports"
+            st.rerun()
+
+        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>SYSTEM</div>", unsafe_allow_html=True)
+        if st.button("⚙️ Settings", use_container_width=True, type="primary" if st.session_state.active_page == "Settings" else "secondary", key="nav_adm_settings"):
+            st.session_state.active_page = "Settings"
+            st.rerun()
+        if st.button("🔐 Admin Profile", use_container_width=True, type="primary" if st.session_state.active_page == "Admin Profile" else "secondary", key="nav_adm_prof"):
+            st.session_state.active_page = "Admin Profile"
+            st.rerun()
+        if st.button("🚪 Logout", use_container_width=True, key="nav_adm_logout"):
+            st.session_state.authenticated = False
+            st.session_state.auth_user = None
+            st.session_state.jwt_token = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.session_state.auth_page = "Landing"
+            st.rerun()
+
+    elif user_role == "recruiter":
+        st.session_state.portal_role = "Recruiter"
+        st.markdown("#### 💼 Recruiter Portal")
+        rec_options = ["Dashboard", "Resume Upload", "Candidate Pipeline", "Interview Question Generator", "Interview Assignment", "Submitted Interviews", "Job Descriptions", "Candidate Matching", "Candidate Details", "Skill Gap Analysis", "Candidate Ranking", "Executive Reports", "Settings", "Recruiter Profile"]
+        rec_icons = ["house", "upload", "funnel", "robot", "journal-plus", "file-earmark-check", "briefcase", "handshake", "people", "lightning", "trophy", "file-earmark-text", "gear", "person-badge"]
+
         try:
             from streamlit_option_menu import option_menu
             active_page = option_menu(
                 menu_title=None,
-                options=options_list,
-                icons=icons_list,
-                default_index=options_list.index(st.session_state.active_page) if st.session_state.active_page in options_list else 0,
+                options=rec_options,
+                icons=rec_icons,
+                default_index=rec_options.index(st.session_state.active_page) if st.session_state.active_page in rec_options else 0,
                 styles={
                     "container": {"padding": "0!important", "background-color": "transparent", "border": "none"},
                     "icon": {"color": p_color, "font-size": "1.1rem"}, 
@@ -2339,53 +3117,55 @@ with st.sidebar:
                 }
             )
         except ImportError:
-            active_page = st.radio("Navigation", options_list, index=0)
+            active_page = st.radio("Recruiter Navigation", rec_options, index=0)
 
         if st.session_state.active_page != active_page:
             st.session_state.active_page = active_page
-            if active_page == "Candidates":
-                st.session_state.selected_candidate_id = None
+            st.rerun()
+
+        st.markdown("---")
+        if st.button("🚪 Logout", use_container_width=True, key="nav_rec_logout"):
+            st.session_state.authenticated = False
+            st.session_state.auth_user = None
+            st.session_state.jwt_token = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.session_state.auth_page = "Landing"
             st.rerun()
 
     else:
-        # Candidate Portal Sidebar
-        st.markdown("#### 🎓 Candidate Portal")
-        candidates_pool = load_candidates("")
+        # Candidate Portal Sidebar - Automatically Linked to Authenticated Candidate User
+        cand_email = (user_info.get("email") or "").strip().lower()
+        cand_name = user_info.get("full_name") or "Candidate User"
+        cand_id = user_info.get("candidate_id") or user_info.get("user_id") or f"CAND-{cand_email}"
 
-        # Quick Candidate Registration / Login
-        with st.expander("➕ Candidate Quick Registration", expanded=not bool(candidates_pool)):
-            with st.form("cand_reg_form"):
-                reg_name = st.text_input("Full Name*", placeholder="e.g. Rahul Sharma")
-                reg_email = st.text_input("Email Address*", placeholder="e.g. rahul@example.com")
-                reg_skills = st.text_input("Skills (comma separated)", placeholder="e.g. Python, FastAPI, Docker")
-                submit_reg = st.form_submit_button("Create Profile")
-                if submit_reg:
-                    if reg_name.strip() and reg_email.strip():
-                        cand_profile = {
-                            "full_name": reg_name.strip(),
-                            "email": reg_email.strip().lower(),
-                            "skills": [s.strip() for s in reg_skills.split(",") if s.strip()],
-                            "recruitment_stage": "Applied",
-                            "created_at": datetime.now().isoformat()
-                        }
-                        db.save_candidate(cand_profile)
-                        st.session_state.current_candidate_user = cand_profile
-                        st.success(f"Registered profile for {reg_name.strip()}!")
-                        st.rerun()
-                    else:
-                        st.error("Please enter both Name and Email.")
+        st.markdown(f"#### 🎓 Candidate Portal")
+        st.caption(f"Logged in as: **{cand_name}** ({cand_email})")
 
+        # Sync/Load linked Candidate record strictly for authenticated user
         candidates_pool = load_candidates("")
-        if candidates_pool:
-            cand_emails = [c.get("email") for c in candidates_pool if c.get("email")]
-            if cand_emails:
-                curr_user = st.session_state.get("current_candidate_user")
-                curr_email = curr_user.get("email") if curr_user else cand_emails[0]
-                curr_idx = cand_emails.index(curr_email) if curr_email in cand_emails else 0
-                selected_cand_email = st.selectbox("🔑 Log in as Candidate:", cand_emails, index=curr_idx, key="cand_identity_select")
-                st.session_state.current_candidate_user = next((c for c in candidates_pool if c.get("email") == selected_cand_email), candidates_pool[0])
+        cand_profile = next((c for c in candidates_pool if (c.get("email") or "").strip().lower() == cand_email or str(c.get("candidate_id") or "").strip() == str(cand_id).strip() or str(c.get("user_id") or "").strip() == str(cand_id).strip() or str(c.get("_id") or c.get("id") or "").strip() == str(cand_id).strip()), None)
+        
+        if not cand_profile:
+            cand_profile = {
+                "candidate_id": cand_id,
+                "user_id": cand_id,
+                "full_name": cand_name,
+                "email": cand_email,
+                "recruitment_stage": "Applied",
+                "application_status": "Applied",
+                "created_at": datetime.now().isoformat()
+            }
+            db.save_candidate(cand_profile)
         else:
-            st.warning("No candidate records found. Register a candidate profile above.")
+            # Attach candidate_id & user_id to existing candidate profile
+            cand_profile["candidate_id"] = cand_id
+            cand_profile["user_id"] = cand_id
+            db.save_candidate(cand_profile)
+
+        st.session_state.current_candidate_user = cand_profile
 
         st.markdown("---")
         cand_options = ["Dashboard", "Browse Jobs", "Assigned Interviews", "Past Interviews", "Profile"]
@@ -2410,6 +3190,18 @@ with st.sidebar:
 
         if st.session_state.candidate_active_page != candidate_page:
             st.session_state.candidate_active_page = candidate_page
+            st.rerun()
+
+        st.markdown("---")
+        if st.button("🚪 Logout", use_container_width=True, key="nav_cand_logout"):
+            st.session_state.authenticated = False
+            st.session_state.auth_user = None
+            st.session_state.jwt_token = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.session_state.auth_page = "Landing"
             st.rerun()
 
     st.markdown("---")
@@ -3707,6 +4499,92 @@ elif active_page == "Submitted Interviews":
 
         st.markdown('</div>', unsafe_allow_html=True)
 
+    st.stop()
+
+
+elif active_page == "Users":
+    st.markdown('<p class="main-heading">👥 Registered Users Directory</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Manage system user accounts, roles, and permissions</p>', unsafe_allow_html=True)
+
+    users_list = db_auth.list_users()
+    if not users_list:
+        st.info("No registered user accounts found.")
+    else:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        for u in users_list:
+            st.markdown(f'''
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.8rem; border-bottom: 1px solid var(--border);">
+                    <div>
+                        <div style="font-weight: 700; font-size: 1.05rem; color: var(--heading);">{html.escape(u.get("full_name", "User"))}</div>
+                        <div style="font-size: 0.85rem; color: var(--muted);">✉️ {html.escape(u.get("email", ""))} &nbsp;|&nbsp; 🆔 {html.escape(u.get("user_id", ""))}</div>
+                    </div>
+                    <div>
+                        <span style="background: rgba(59, 130, 246, 0.15); color: #3B82F6; padding: 0.3rem 0.8rem; border-radius: 9999px; font-weight: 700; font-size: 0.78rem; text-transform: uppercase;">ROLE: {html.escape(u.get("role", "candidate"))}</span>
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
+
+
+elif active_page == "Recruiters":
+    st.markdown('<p class="main-heading">🧑💼 Recruiters & Hiring Managers</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Active talent acquisition team members and recruiters</p>', unsafe_allow_html=True)
+
+    users_list = [u for u in db_auth.list_users() if u.get("role") in ["recruiter", "admin"]]
+    if not users_list:
+        st.info("No recruiter or admin team accounts registered yet.")
+    else:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        for u in users_list:
+            st.markdown(f'''
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.8rem; border-bottom: 1px solid var(--border);">
+                    <div>
+                        <div style="font-weight: 700; font-size: 1.05rem; color: var(--heading);">💼 {html.escape(u.get("full_name", "Recruiter"))}</div>
+                        <div style="font-size: 0.85rem; color: var(--muted);">✉️ {html.escape(u.get("email", ""))} &nbsp;|&nbsp; 📅 Registered: {html.escape(str(u.get("created_at", ""))[:10])}</div>
+                    </div>
+                    <div>
+                        <span style="background: rgba(16, 185, 129, 0.15); color: #10B981; padding: 0.3rem 0.8rem; border-radius: 9999px; font-weight: 700; font-size: 0.78rem;">{html.escape(u.get("role", "recruiter").upper())}</span>
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.stop()
+
+
+elif active_page == "Admin Profile":
+    st.markdown('<p class="main-heading">🔐 Admin / Recruiter Profile</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Authenticated user account credentials & active session info</p>', unsafe_allow_html=True)
+
+    user = st.session_state.get("auth_user") or {}
+    st.markdown(f'''
+        <div class="custom-card">
+            <h3>👤 Profile Information</h3>
+            <p><strong>Full Name:</strong> {html.escape(user.get("full_name", "Admin"))}</p>
+            <p><strong>Email Address:</strong> {html.escape(user.get("email", "admin@copilot.ai"))}</p>
+            <p><strong>User ID:</strong> <code>{html.escape(user.get("user_id", "USR-ADMIN"))}</code></p>
+            <p><strong>Assigned Role:</strong> <span style="background: rgba(16, 185, 129, 0.15); color: #10B981; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 700;">{html.escape((user.get("role") or "admin").upper())}</span></p>
+            <p><strong>Authentication Standard:</strong> JWT (HS256) Encrypted Session</p>
+        </div>
+    ''', unsafe_allow_html=True)
+    st.stop()
+
+
+elif active_page == "Recruiter Profile":
+    st.markdown('<p class="main-heading">👤 Recruiter Profile</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Talent Acquisition Manager Account Details & Capabilities</p>', unsafe_allow_html=True)
+
+    user = st.session_state.get("auth_user") or {}
+    st.markdown(f'''
+        <div class="custom-card">
+            <h3>💼 Recruiter Account Overview</h3>
+            <p><strong>Full Name:</strong> {html.escape(user.get("full_name", "Recruiter"))}</p>
+            <p><strong>Work Email:</strong> {html.escape(user.get("email", "recruiter@company.com"))}</p>
+            <p><strong>User ID:</strong> <code>{html.escape(user.get("user_id", "USR-REC"))}</code></p>
+            <p><strong>Role:</strong> <span style="background: rgba(59, 130, 246, 0.15); color: #3B82F6; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 700;">RECRUITER</span></p>
+            <p><strong>Access Level:</strong> Full ATS Applicant Screening, JD Matching, Interview Question Generation & Candidate Ranking</p>
+        </div>
+    ''', unsafe_allow_html=True)
     st.stop()
 
 

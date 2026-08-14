@@ -401,5 +401,197 @@
     "final_recommendation": "Recommended",
     "created_at": "2026-08-10T14:53:41.500759",
     "_id": "6a79e5f5d31e48ad9367fd9c"
+  },
+  "INTV-DCEBFE14": {
+    "summary_id": "ISUM-845CA2A1",
+    "interview_id": "INTV-DCEBFE14",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-9E98BE",
+    "overall_interview_score": 70,
+    "avg_technical_score": 67,
+    "avg_communication_score": 71,
+    "avg_problem_solving_score": 70,
+    "avg_confidence_score": 74,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T12:27:36.279123",
+    "_id": "6a7f09b821c800fbe07ff086"
+  },
+  "INTV-8003A5D0": {
+    "summary_id": "ISUM-8E449A3D",
+    "interview_id": "INTV-8003A5D0",
+    "candidate_id": "CAND-E2E-99",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-785EC6",
+    "overall_interview_score": 72,
+    "avg_technical_score": 70,
+    "avg_communication_score": 73,
+    "avg_problem_solving_score": 72,
+    "avg_confidence_score": 76,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T12:27:43.296402",
+    "_id": "6a7f09bf21c800fbe07ff08e"
+  },
+  "INTV-5D2467F2": {
+    "summary_id": "ISUM-D5ADC520",
+    "interview_id": "INTV-5D2467F2",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-548537",
+    "overall_interview_score": 70,
+    "avg_technical_score": 67,
+    "avg_communication_score": 71,
+    "avg_problem_solving_score": 70,
+    "avg_confidence_score": 74,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T12:33:22.538224",
+    "_id": "6a7f0b122f03e37fc9379456"
+  },
+  "INTV-C5FAC98C": {
+    "summary_id": "ISUM-11A98C21",
+    "interview_id": "INTV-C5FAC98C",
+    "candidate_id": "CAND-E2E-99",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-BA24C8",
+    "overall_interview_score": 72,
+    "avg_technical_score": 70,
+    "avg_communication_score": 73,
+    "avg_problem_solving_score": 72,
+    "avg_confidence_score": 76,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T12:33:30.959215",
+    "_id": "6a7f0b1c2f03e37fc937945e"
+  },
+  "INTV-E9EE6F40": {
+    "summary_id": "ISUM-AF1B9695",
+    "interview_id": "INTV-E9EE6F40",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-87C6EB",
+    "overall_interview_score": 70,
+    "avg_technical_score": 67,
+    "avg_communication_score": 71,
+    "avg_problem_solving_score": 70,
+    "avg_confidence_score": 74,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T12:48:32.220681",
+    "_id": "6a7f0ea0759141300633907d"
+  },
+  "INTV-2D216988": {
+    "summary_id": "ISUM-BDCCDFCC",
+    "interview_id": "INTV-2D216988",
+    "candidate_id": "CAND-E2E-99",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-3159CF",
+    "overall_interview_score": 72,
+    "avg_technical_score": 70,
+    "avg_communication_score": 73,
+    "avg_problem_solving_score": 72,
+    "avg_confidence_score": 76,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T12:48:38.612531",
+    "_id": "6a7f0ea67591413006339085"
+  },
+  "INTV-C40E4880": {
+    "summary_id": "ISUM-5F62E00B",
+    "interview_id": "INTV-C40E4880",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-8249B3",
+    "overall_interview_score": 70,
+    "avg_technical_score": 67,
+    "avg_communication_score": 71,
+    "avg_problem_solving_score": 70,
+    "avg_confidence_score": 74,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T13:07:08.742837",
+    "_id": "6a7f12fd19e1120ff615a313"
+  },
+  "INTV-80A215C0": {
+    "summary_id": "ISUM-DE5709B2",
+    "interview_id": "INTV-80A215C0",
+    "candidate_id": "CAND-E2E-99",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-F69D0E",
+    "overall_interview_score": 72,
+    "avg_technical_score": 70,
+    "avg_communication_score": 73,
+    "avg_problem_solving_score": 72,
+    "avg_confidence_score": 76,
+    "top_strengths": [
+      "Clear communication",
+      "Practical technical experience",
+      "Structured problem solving"
+    ],
+    "areas_for_improvement": [
+      "Deeper system architecture details",
+      "Edge-case error handling"
+    ],
+    "final_recommendation": "Recommended",
+    "created_at": "2026-08-14T13:07:17.466878",
+    "_id": "6a7f130519e1120ff615a31b"
   }
 }

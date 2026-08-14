@@ -10,11 +10,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import job_routes
 import jd_routes
+import auth_routes
 
 # Initialize FastAPI App
 app = FastAPI(
     title="AI Recruitment & Talent Management Copilot API",
-    description="Backend API services supporting candidate processing and Job Description management.",
+    description="Backend API services supporting candidate processing, auth, and Job Description management.",
     version="1.0.0"
 )
 
@@ -31,6 +32,8 @@ app.add_middleware(
 app.include_router(job_routes.router)
 # Include JD Match router
 app.include_router(jd_routes.router)
+# Include Auth router
+app.include_router(auth_routes.router)
 
 
 @app.get("/", tags=["Health"])

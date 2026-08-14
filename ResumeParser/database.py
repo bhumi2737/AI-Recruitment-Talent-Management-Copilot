@@ -144,6 +144,11 @@ def ensure_db_indexes(database_inst=None):
         database_inst["interview_evaluations"].create_index("interview_id", background=True)
         database_inst["interview_summaries"].create_index("interview_id", background=True)
         
+        # Users collection indexes
+        user_col = database_inst["users"]
+        user_col.create_index("user_id", background=True, sparse=True)
+        user_col.create_index("email", background=True, unique=True, sparse=True)
+        
         _indexes_created = True
     except Exception:
         pass
@@ -201,21 +206,29 @@ def save_candidate(profile: dict[str, Any]) -> tuple[bool, str, str | None, str 
             else:
                 filter_query = {"resume_hash": resume_hash}
 
+            existing_doc = col.find_one(filter_query)
+            if existing_doc:
+                for k in ["full_name", "phone", "skills", "education", "experience", "certifications", "projects", "raw_text", "source_filename", "source_file_type", "resume_hash", "candidate_id", "user_id", "recruitment_stage", "application_status"]:
+                    if (profile.get(k) is None or profile.get(k) == "" or profile.get(k) == []) and existing_doc.get(k):
+                        profile[k] = existing_doc.get(k)
+
             update_doc = {
                 "$set": {
                     "full_name": profile.get("full_name", ""),
                     "email": email,
-                    "phone": phone,
+                    "phone": profile.get("phone", ""),
                     "skills": _list_to_text(profile.get("skills")),
                     "education": profile.get("education", ""),
                     "experience": profile.get("experience", ""),
                     "certifications": profile.get("certifications", ""),
                     "projects": profile.get("projects", ""),
-                    "raw_text": raw_text,
+                    "raw_text": profile.get("raw_text", ""),
                     "updated_at": datetime.datetime.utcnow(),
-                    "source_filename": source_filename,
-                    "source_file_type": source_file_type,
-                    "resume_hash": resume_hash,
+                    "source_filename": profile.get("source_filename", ""),
+                    "source_file_type": profile.get("source_file_type", ""),
+                    "resume_hash": profile.get("resume_hash", resume_hash),
+                    "candidate_id": profile.get("candidate_id") or (str(existing_doc.get("_id")) if existing_doc else None),
+                    "user_id": profile.get("user_id") or (existing_doc.get("user_id") if existing_doc else None)
                 },
                 "$setOnInsert": {
                     "created_at": datetime.datetime.utcnow(),

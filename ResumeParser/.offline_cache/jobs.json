@@ -1748,5 +1748,305 @@
     "salary": "",
     "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
     "created_at": "2026-08-10T14:53:38.018313"
+  },
+  "JOB-3C1FAA": {
+    "job_id": "JOB-3C1FAA",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-14T12:27:26.177117"
+  },
+  "JOB-2B43F1": {
+    "job_id": "JOB-2B43F1",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-14T12:27:27.000516"
+  },
+  "JOB-2504C2": {
+    "job_id": "JOB-2504C2",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T12:27:27.410939"
+  },
+  "JOB-9E98BE": {
+    "job_id": "JOB-9E98BE",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T12:27:29.425284"
+  },
+  "JOB-785EC6": {
+    "job_id": "JOB-785EC6",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-14T12:27:38.893720"
+  },
+  "JOB-34EB06": {
+    "job_id": "JOB-34EB06",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-14T12:33:09.975364"
+  },
+  "JOB-431A7F": {
+    "job_id": "JOB-431A7F",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-14T12:33:11.151272"
+  },
+  "JOB-1FFF39": {
+    "job_id": "JOB-1FFF39",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T12:33:11.635289"
+  },
+  "JOB-548537": {
+    "job_id": "JOB-548537",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T12:33:13.684096"
+  },
+  "JOB-BA24C8": {
+    "job_id": "JOB-BA24C8",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-14T12:33:25.693824"
+  },
+  "JOB-6547B1": {
+    "job_id": "JOB-6547B1",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-14T12:48:22.980453"
+  },
+  "JOB-14C787": {
+    "job_id": "JOB-14C787",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-14T12:48:23.772041"
+  },
+  "JOB-3BA4B1": {
+    "job_id": "JOB-3BA4B1",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T12:48:24.202247"
+  },
+  "JOB-87C6EB": {
+    "job_id": "JOB-87C6EB",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T12:48:25.926418"
+  },
+  "JOB-3159CF": {
+    "job_id": "JOB-3159CF",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-14T12:48:34.866441"
+  },
+  "JOB-880D6C": {
+    "job_id": "JOB-880D6C",
+    "job_title": "Python Developer",
+    "company_name": "TechCorp",
+    "required_skills": [
+      "Python",
+      "FastAPI",
+      "PostgreSQL"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Python FastAPI backend developer",
+    "created_at": "2026-08-14T13:06:58.754138"
+  },
+  "JOB-E20B93": {
+    "job_id": "JOB-E20B93",
+    "job_title": "Lead DevOps Architect",
+    "company_name": "Cloud Infra Inc",
+    "required_skills": [
+      "Kubernetes",
+      "AWS",
+      "Terraform",
+      "CI/CD",
+      "Docker"
+    ],
+    "experience_required": "5+ Years",
+    "location": "Hybrid",
+    "salary": "$160,000",
+    "job_description": "Architect cloud environments using AWS, Kubernetes, Terraform, and Docker.",
+    "created_at": "2026-08-14T13:06:59.526926"
+  },
+  "JOB-FB95EA": {
+    "job_id": "JOB-FB95EA",
+    "job_title": "Minimal Role",
+    "company_name": "",
+    "required_skills": [],
+    "experience_required": "",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T13:07:00.057316"
+  },
+  "JOB-8249B3": {
+    "job_id": "JOB-8249B3",
+    "job_title": "Frontend Engineer",
+    "company_name": "UI Solutions",
+    "required_skills": [
+      "React",
+      "TypeScript",
+      "CSS",
+      "HTML"
+    ],
+    "experience_required": "2+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "",
+    "created_at": "2026-08-14T13:07:01.781445"
+  },
+  "JOB-F69D0E": {
+    "job_id": "JOB-F69D0E",
+    "job_title": "E2E Senior AI Engineer",
+    "company_name": "Innovate AI",
+    "required_skills": [
+      "Python",
+      "PyTorch",
+      "FastAPI",
+      "MongoDB"
+    ],
+    "experience_required": "4+ Years",
+    "location": "",
+    "salary": "",
+    "job_description": "Building LLM pipelines with Python, PyTorch, FastAPI.",
+    "created_at": "2026-08-14T13:07:12.609655"
   }
 }

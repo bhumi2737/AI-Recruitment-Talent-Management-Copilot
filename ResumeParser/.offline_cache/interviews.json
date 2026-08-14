@@ -2557,5 +2557,248 @@
     "messages": [],
     "updated_at": "2026-08-10T14:53:41.115512",
     "submitted_time": "2026-08-10T14:53:41.115512"
+  },
+  "INTV-DCEBFE14": {
+    "interview_id": "INTV-DCEBFE14",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-9E98BE",
+    "generated_questions": [
+      "How do you optimize the performance of a React application, and what tools or techniques do you use to identify performance bottlenecks?",
+      "Can you describe a situation where you had to collaborate with a designer to implement a complex UI component, and how you ensured that the final implementation met the design requirements?",
+      "Suppose you are tasked with refactoring an existing frontend codebase to use TypeScript, what steps would you take to ensure a smooth migration, and how would you handle any potential issues that arise during the process?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T12:27:32.244688",
+    "due_date": "2026-08-30",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I use useState and useEffect."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T12:27:35.128987",
+    "submitted_time": "2026-08-14T12:27:35.128987"
+  },
+  "INTV-8003A5D0": {
+    "interview_id": "INTV-8003A5D0",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-785EC6",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T12:27:40.330142",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T12:27:42.580743",
+    "submitted_time": "2026-08-14T12:27:42.580743"
+  },
+  "INTV-5D2467F2": {
+    "interview_id": "INTV-5D2467F2",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-548537",
+    "generated_questions": [
+      "Can you explain how you would optimize the performance of a React application using TypeScript, considering factors such as code splitting, lazy loading, and memoization?",
+      "Tell me about a time when you had to work with a designer to implement a complex UI component. How did you ensure that your implementation met the design requirements and how did you handle any discrepancies that arose during the process?",
+      "Suppose you are tasked with building a responsive web application using React, TypeScript, and CSS. The application needs to support multiple screen sizes and devices. How would you approach this task, and what strategies would you use to ensure that the application is responsive and accessible across different devices and screen sizes?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T12:33:17.302467",
+    "due_date": "2026-08-30",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I use useState and useEffect."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T12:33:21.008818",
+    "submitted_time": "2026-08-14T12:33:21.008818"
+  },
+  "INTV-C5FAC98C": {
+    "interview_id": "INTV-C5FAC98C",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-BA24C8",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T12:33:26.681333",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T12:33:29.130655",
+    "submitted_time": "2026-08-14T12:33:29.130655"
+  },
+  "INTV-E9EE6F40": {
+    "interview_id": "INTV-E9EE6F40",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-87C6EB",
+    "generated_questions": [
+      "How do you optimize the performance of a React application, and what tools or techniques do you use to identify bottlenecks?",
+      "Can you describe a situation where you had to collaborate with a designer to implement a complex UI component, and how you ensured that your implementation met the design requirements?",
+      "Suppose you are tasked with refactoring a legacy frontend codebase to use TypeScript, what steps would you take to ensure a smooth migration, and how would you handle any potential issues that arise during the process?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T12:48:28.448814",
+    "due_date": "2026-08-30",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I use useState and useEffect."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T12:48:31.051300",
+    "submitted_time": "2026-08-14T12:48:31.051300"
+  },
+  "INTV-2D216988": {
+    "interview_id": "INTV-2D216988",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-3159CF",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T12:48:35.823689",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T12:48:37.913550",
+    "submitted_time": "2026-08-14T12:48:37.913550"
+  },
+  "INTV-C40E4880": {
+    "interview_id": "INTV-C40E4880",
+    "candidate_id": "CAND-INTV-ASSIGN",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-8249B3",
+    "generated_questions": [
+      "Explain how you would optimize the performance of a React application using TypeScript, considering factors such as code splitting, tree shaking, and memoization.",
+      "Can you describe a situation where you had to work with a designer to implement a complex UI component using CSS, and how you ensured that the final implementation met the design requirements?",
+      "Suppose you are tasked with building a responsive landing page using HTML, CSS, and React. How would you approach this task, and what considerations would you keep in mind to ensure a seamless user experience across different devices and screen sizes?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T13:07:04.665517",
+    "due_date": "2026-08-30",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "I use useState and useEffect."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T13:07:07.660665",
+    "submitted_time": "2026-08-14T13:07:07.660665"
+  },
+  "INTV-80A215C0": {
+    "interview_id": "INTV-80A215C0",
+    "candidate_id": "CAND-E2E-99",
+    "candidate_email": "",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-F69D0E",
+    "generated_questions": [
+      "Explain PyTorch autograd engine.",
+      "How do you scale FastAPI microservices?"
+    ],
+    "question_source": "Recruiter Question Set",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T13:07:13.866572",
+    "due_date": "2026-09-01",
+    "interview_status": "Submitted",
+    "draft_answers": {
+      "0": "It builds dynamic computation graphs during forward pass.",
+      "1": "Using async endpoints and worker process pooling."
+    },
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T13:07:16.659892",
+    "submitted_time": "2026-08-14T13:07:16.659892"
+  },
+  "INTV-1A8FBED9": {
+    "interview_id": "INTV-1A8FBED9",
+    "candidate_id": "6a53961269254e68d40dff00",
+    "candidate_email": "priya.mehta@example.com",
+    "recruiter_id": "recruiter_admin",
+    "job_id": "JOB-23D8C7",
+    "generated_questions": [
+      "Please introduce yourself and explain why your experience makes you a strong fit for the Data Scientist position.",
+      "Describe a challenging project you worked on recently. What was your specific role and how did you measure success?",
+      "How do you utilize Python in your daily engineering workflow? Describe a practical scenario where you solved a key technical problem using Python.",
+      "How do you utilize Machine Learning in your daily engineering workflow? Describe a practical scenario where you solved a key technical problem using Machine Learning.",
+      "How do you utilize Pandas in your daily engineering workflow? Describe a practical scenario where you solved a key technical problem using Pandas.",
+      "How do you utilize Scikit-Learn in your daily engineering workflow? Describe a practical scenario where you solved a key technical problem using Scikit-Learn."
+    ],
+    "question_source": "Fully AI Generated",
+    "question_set_id": "",
+    "duration_minutes": 30,
+    "voice_enabled": true,
+    "allow_ai_followup": true,
+    "assigned_date": "2026-08-14T13:33:37.070451",
+    "due_date": "2026-08-21",
+    "interview_status": "Assigned",
+    "draft_answers": {},
+    "conversation_history": [],
+    "messages": [],
+    "updated_at": "2026-08-14T13:33:37.070451"
   }
 }

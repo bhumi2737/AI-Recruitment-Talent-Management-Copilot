@@ -40,9 +40,19 @@ def save_offline_data(collection_name: str, data: dict[str, Any]) -> None:
 
 
 def upsert_offline_record(collection_name: str, key: str, record: dict[str, Any]) -> None:
-    """Upsert a single record into the offline JSON file."""
+    """Upsert a single record into the offline JSON file, preserving existing fields if new fields are empty."""
     data = load_offline_data(collection_name)
-    data[key] = record
+    existing = data.get(key)
+    if existing and isinstance(existing, dict) and isinstance(record, dict):
+        merged = existing.copy()
+        for k, v in record.items():
+            if v is not None and v != "" and v != []:
+                merged[k] = v
+            elif k not in merged:
+                merged[k] = v
+        data[key] = merged
+    else:
+        data[key] = record
     save_offline_data(collection_name, data)
 
 
