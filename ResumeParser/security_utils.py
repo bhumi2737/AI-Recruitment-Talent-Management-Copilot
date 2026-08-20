@@ -7,7 +7,6 @@ from typing import Optional, Tuple
 from html import escape
 
 import streamlit as st
-from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 import database as db
 
 RATE_LIMITS = {
@@ -73,13 +72,9 @@ class RateLimiter:
 
 
 def get_client_ip() -> str:
-    """Extract client IP from Streamlit context securely."""
+    """Extract client IP securely, failing gracefully if Streamlit internals change."""
+    # Try modern Streamlit context (Streamlit >= 1.30)
     try:
-        ctx = get_script_run_ctx()
-        if ctx is None:
-            return "127.0.0.1"
-            
-        # Try to get from st.context if available (Streamlit >= 1.30)
         if hasattr(st, "context") and hasattr(st.context, "headers"):
             headers = st.context.headers
             forwarded = headers.get("X-Forwarded-For")
@@ -88,6 +83,19 @@ def get_client_ip() -> str:
             real_ip = headers.get("X-Real-IP")
             if real_ip:
                 return real_ip.strip()
+    except Exception:
+        pass
+        
+    # Try legacy ScriptRunContext safely
+    try:
+        from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
+        ctx = get_script_run_ctx()
+        if ctx is not None:
+            # In older Streamlit versions, headers might be attached here in some third-party hacks,
+            # but usually it's just best to return localhost if we get here.
+            pass
+    except ImportError:
+        pass
     except Exception:
         pass
         
