@@ -499,6 +499,14 @@ def inject_custom_css():
         .empty-state {{ text-align: center; padding: 3rem 1rem; color: var(--muted); }}
         .empty-state-icon {{ font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }}
         .empty-state-text {{ font-size: 1.1rem; font-weight: 500; font-family: 'Poppins', sans-serif; }}
+
+        /* Force Hide Streamlit Developer Toolbar on Cloud */
+        [data-testid="stHeader"], [data-testid="stToolbar"], .stAppToolbar, header[data-testid="stHeader"] {{
+            visibility: hidden !important;
+            display: none !important;
+            height: 0px !important;
+            padding: 0px !important;
+        }}
     </style>
     """
     st.markdown(css, unsafe_allow_html=True)
