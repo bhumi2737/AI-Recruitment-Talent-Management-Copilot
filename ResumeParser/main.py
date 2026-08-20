@@ -1,7 +1,7 @@
 """
 FastAPI Server Entry Point
 --------------------------
-Starts the backend web server for the Recruitment Copilot.
+Starts the backend web server for HireFlow AI.
 Exposes Job description REST APIs.
 """
 
@@ -15,7 +15,7 @@ import auth_routes
 
 # Initialize FastAPI App
 app = FastAPI(
-    title="AI Recruitment & Talent Management Copilot API",
+    title="HireFlow AI API",
     description="Backend API services supporting candidate processing, auth, and Job Description management.",
     version="1.0.0"
 )
@@ -47,7 +47,7 @@ def health_check():
     """
     return {
         "status": "healthy",
-        "service": "AI Recruitment Copilot API",
+        "service": "HireFlow AI API",
         "version": "1.0.0"
     }
 

@@ -109,7 +109,7 @@ def generate_interview_pdf_report(
 
     # 1. Header Title
     story.append(Paragraph("AI Candidate Interview Evaluation Report", title_style))
-    story.append(Paragraph(f"Assignment ID: <strong>{interview_id}</strong> &nbsp;|&nbsp; Talent Acquisition Copilot", subtitle_style))
+    story.append(Paragraph(f"Assignment ID: <strong>{interview_id}</strong> &nbsp;|&nbsp; HireFlow AI", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=secondary_color, spaceAfter=15))
 
     # 2. Candidate & Vacancy Overview Card

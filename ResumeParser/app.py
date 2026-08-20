@@ -1,5 +1,5 @@
 """
-AI Recruitment & Talent Management Copilot
+HireFlow AI
 Milestone 1: Resume Parser and Candidate Profiling
 Streamlit dashboard application.
 """
@@ -1033,10 +1033,10 @@ def render_landing_page():
     st.markdown('''
         <div class="footer">
             <div style="font-weight:700; color:var(--heading); font-size:1.1rem; margin-bottom:0.5rem;">
-                📋 AI Recruitment & Talent Management Copilot
+                📋 HireFlow AI
             </div>
             <p style="margin-bottom:1rem;">Next-generation AI recruitment platform powered by advanced NLP and intelligent candidate evaluation.</p>
-            <p>© 2026 AI Recruitment Copilot. All rights reserved. | <a href="#" style="color:var(--primary); text-decoration:none;">GitHub Repository</a> | <a href="#" style="color:var(--primary); text-decoration:none;">Privacy Policy</a></p>
+            <p>© 2026 HireFlow AI. All rights reserved. | <a href="#" style="color:var(--primary); text-decoration:none;">GitHub Repository</a> | <a href="#" style="color:var(--primary); text-decoration:none;">Privacy Policy</a></p>
         </div>
     ''', unsafe_allow_html=True)
 
@@ -1075,7 +1075,7 @@ def render_register_page():
     st.markdown('''
         <div class="auth-card">
             <div class="auth-title">Create Your Account</div>
-            <div class="auth-subtitle">Get started with AI Recruitment & Talent Management Copilot</div>
+            <div class="auth-subtitle">Get started with HireFlow AI</div>
     ''', unsafe_allow_html=True)
 
     with st.form("register_form", clear_on_submit=False):
@@ -1165,7 +1165,7 @@ def render_login_page():
     st.markdown('''
         <div class="auth-card">
             <div class="auth-title">Welcome Back</div>
-            <div class="auth-subtitle">Sign in to your AI Recruitment Copilot Dashboard</div>
+            <div class="auth-subtitle">Sign in to your HireFlow AI Dashboard</div>
     ''', unsafe_allow_html=True)
 
     with st.form("login_form", clear_on_submit=False):
