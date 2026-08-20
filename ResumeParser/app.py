@@ -50,37 +50,40 @@ from parser import calculate_extraction_accuracy, parse_resume
 from scorer import calculate_ats_score
 from jd_matcher import calculate_candidate_score
 
-# ── Mock Jobs Data ────────────────────────────────────────────────────────────
+# ── Mock Jobs Data (Fallback Sample Data when DB is Empty) ───────────────────
 DEFAULT_MOCK_JOBS = [
     {
         "job_id": "JOB-MOCK1",
-        "job_title": "Senior Python Backend Engineer",
-        "company_name": "TechCorp Solutions",
+        "job_title": "Senior Python Backend Engineer (Sample)",
+        "company_name": "TechCorp Solutions [Demo Sample]",
         "location": "San Francisco, CA (Hybrid)",
         "experience_required": "5+ Years",
         "required_skills": ["Python", "FastAPI", "Docker", "PostgreSQL", "REST API"],
         "job_description": "We are seeking a Senior Python Backend Engineer to design and implement scalable microservices. You will work with FastAPI, Docker, and PostgreSQL on a daily basis.",
         "salary": "$130,000 - $160,000",
+        "is_demo": True,
     },
     {
         "job_id": "JOB-MOCK2",
-        "job_title": "Data Scientist / ML Practitioner",
-        "company_name": "AI & Insights Ltd",
+        "job_title": "Data Scientist / ML Practitioner (Sample)",
+        "company_name": "AI & Insights Ltd [Demo Sample]",
         "location": "Remote (US/Canada)",
         "experience_required": "3+ Years",
         "required_skills": ["Python", "TensorFlow", "PyTorch", "Machine Learning", "Scikit-learn"],
         "job_description": "Join our AI & Insights team to build and deploy machine learning models. Experience with TensorFlow or PyTorch and classical ML packages is required.",
         "salary": "$120,000 - $150,000",
+        "is_demo": True,
     },
     {
         "job_id": "JOB-MOCK3",
-        "job_title": "Fullstack Software Engineer (React/Node)",
-        "company_name": "WebFlow Inc",
+        "job_title": "Fullstack Software Engineer (Sample)",
+        "company_name": "WebFlow Inc [Demo Sample]",
         "location": "New York, NY",
         "experience_required": "2+ Years",
         "required_skills": ["React", "JavaScript", "TypeScript", "Node.js", "HTML", "CSS"],
         "job_description": "Looking for a fullstack engineer to develop user interfaces in React and backend services in Node.js. Must be comfortable writing TypeScript, HTML, and CSS.",
         "salary": "$100,000 - $130,000",
+        "is_demo": True,
     }
 ]
 
