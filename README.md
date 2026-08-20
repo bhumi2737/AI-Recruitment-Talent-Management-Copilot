@@ -156,7 +156,7 @@ MONGO_DB = "recruitment_copilot"
 MONGO_COLLECTION = "candidates"
 GROQ_API_KEY = "gsk_your_groq_api_key"
 JWT_SECRET_KEY = "your_production_jwt_secret_key"
-BOOTSTRAP_ADMIN_PASSWORD = "admin123"
+BOOTSTRAP_ADMIN_PASSWORD = "your_password"
 ```
 
 5. Click **Deploy!** Your application will be live publicly.
