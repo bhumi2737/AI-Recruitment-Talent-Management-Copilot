@@ -3058,7 +3058,7 @@ with st.sidebar:
     st.markdown("# ⚡ HireFlow AI")
     st.markdown("---")
 
-    theme_mode = st.session_state.get("theme", "Dark")
+    theme_mode = st.session_state.get("theme", "Light")
     p_color = "#34D399" if theme_mode == "Dark" else "#059669"
     text_c = "#CBD5E1" if theme_mode == "Dark" else "#334155"
     bg_sec_c = "#111827" if theme_mode == "Dark" else "#F1F5F9"
@@ -3215,14 +3215,6 @@ with st.sidebar:
             st.session_state.auth_page = "Landing"
             st.rerun()
 
-    st.markdown("---")
-    
-    # Theme Toggle
-    theme_choice = st.radio("Theme", ["Light", "Dark"], index=0 if st.session_state.theme == "Light" else 1, horizontal=True)
-    if theme_choice != st.session_state.theme:
-        st.session_state.theme = theme_choice
-        st.rerun()
-        
     st.markdown("---")
 
     db_ok, db_msg = load_db_status()
