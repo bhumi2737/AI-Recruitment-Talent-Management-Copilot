@@ -40,6 +40,7 @@ import db_interviews
 import db_applications
 import db_auth
 import auth_service
+import security_utils
 import ai_question_generator
 import db_question_generator
 import db_question_sets
@@ -1097,10 +1098,17 @@ def render_register_page():
         submit_btn = st.form_submit_button("🚀 Create Account", use_container_width=True, type="primary")
 
         if submit_btn:
+            # 1. Rate Limiter Check (Signup IP)
+            client_ip = security_utils.get_client_ip()
+            allowed, limit_msg = security_utils.RateLimiter.check_rate_limit("signup_ip", client_ip)
+            if not allowed:
+                st.error(limit_msg)
+                return
+
             with st.spinner("Creating your account..."):
                 ok, msg, user_data = auth_service.register_user(
-                    full_name=full_name,
-                    email=email,
+                    full_name=security_utils.sanitize_input(full_name, 100),
+                    email=security_utils.sanitize_input(email, 255),
                     password=password,
                     confirm_password=confirm_password,
                     role=selected_role
@@ -1176,6 +1184,13 @@ def render_login_page():
         login_btn = st.form_submit_button("🔑 Sign In", use_container_width=True, type="primary")
 
         if login_btn:
+            # 2. Rate Limiter Check (Login IP)
+            client_ip = security_utils.get_client_ip()
+            allowed, limit_msg = security_utils.RateLimiter.check_rate_limit("login_ip", client_ip)
+            if not allowed:
+                st.error(limit_msg)
+                return
+
             with st.spinner("Authenticating..."):
                 ok, msg, user_data = auth_service.authenticate_user(email=email, password=password)
                 if ok and user_data:
@@ -5766,6 +5781,20 @@ elif active_page == "Resume Upload":
         )
 
         if uploaded_file:
+            # 3. Rate Limiter Check (Resume Upload User/IP)
+            client_ip = security_utils.get_client_ip()
+            user_id = st.session_state.auth_user.get("user_id", client_ip) if st.session_state.get("auth_user") else client_ip
+            allowed, limit_msg = security_utils.RateLimiter.check_rate_limit("resume_upload_user", user_id)
+            if not allowed:
+                st.error(limit_msg)
+                st.stop()
+
+            # 4. File Security Validation (Magic Bytes & Size)
+            is_safe, sec_msg = security_utils.validate_file_security(uploaded_file)
+            if not is_safe:
+                st.error(f"Security Warning: {sec_msg}")
+                st.stop()
+
             st.markdown(f'<p class="file-name">📄 {html.escape(uploaded_file.name)}</p>', unsafe_allow_html=True)
 
         st.markdown('<p class="upload-hint">Supported formats: PDF, DOCX</p>', unsafe_allow_html=True)

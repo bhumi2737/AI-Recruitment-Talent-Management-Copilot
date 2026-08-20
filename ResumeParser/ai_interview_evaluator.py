@@ -91,7 +91,9 @@ Interview Question Asked:
 "{question}"
 
 Candidate's Actual Response:
-"{answer}"
+<user_data>
+"{answer[:5000]}"
+</user_data>
 
 Required Output JSON Schema (STRICT JSON ONLY):
 {{

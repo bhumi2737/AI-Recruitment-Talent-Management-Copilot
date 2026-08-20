@@ -148,9 +148,15 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
 
 
 def register_user(full_name: str, email: str, password: str, confirm_password: str = "", role: str = "candidate", is_bootstrap: bool = False) -> tuple[bool, str, dict[str, Any] | None]:
-    """Register a new user account with validation and automatic candidate record linkage."""
-    clean_name = (full_name or "").strip()
-    clean_email = (email or "").strip().lower()
+    """Register a new user account with strict type validation and automatic candidate record linkage."""
+    if not isinstance(email, str) or not isinstance(password, str) or not isinstance(full_name, str):
+        return False, "Invalid input format.", None
+        
+    if len(email) > 255 or len(full_name) > 100 or len(password) > 128:
+        return False, "Input exceeds maximum allowed length.", None
+
+    clean_name = full_name.strip()
+    clean_email = email.strip().lower()
     clean_role = (role or "candidate").strip().lower()
 
     if clean_role not in ["recruiter", "candidate", "admin"]:
@@ -218,8 +224,14 @@ def register_user(full_name: str, email: str, password: str, confirm_password: s
 
 
 def authenticate_user(email: str, password: str) -> tuple[bool, str, dict[str, Any] | None]:
-    """Authenticate user with email and password."""
-    clean_email = (email or "").strip().lower()
+    """Authenticate user with strict type validation for email and password."""
+    if not isinstance(email, str) or not isinstance(password, str):
+        return False, "Invalid input format.", None
+        
+    if len(email) > 255 or len(password) > 128:
+        return False, "Input exceeds maximum allowed length.", None
+
+    clean_email = email.strip().lower()
     if not clean_email or not password:
         return False, "Email and Password are required.", None
 
