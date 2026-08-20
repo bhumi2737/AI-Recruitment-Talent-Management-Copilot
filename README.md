@@ -1,6 +1,11 @@
 # AI Driven Smart Hiring Platform with Candidate Matching Copilot (HireFlow AI) ⚡💼
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hireflow-copilot.streamlit.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 An enterprise-grade, AI-powered **Smart Hiring Platform & Recruitment Copilot** built with **Python**, **Streamlit**, **MongoDB**, and **Groq LLM/Whisper AI**.
+
+**🚀 Live Demo:** [HireFlow AI on Streamlit Cloud](https://hireflow-copilot.streamlit.app/)
 
 **HireFlow AI** streamlines talent acquisition, automated resume parsing, ATS scoring, Job Description candidate matching, AI-driven technical interviews, automated candidate evaluations, and enterprise platform management.
 
