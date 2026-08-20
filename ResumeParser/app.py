@@ -3523,7 +3523,7 @@ def render_admin_system_analytics():
 
         cand_skill_counts = Counter()
         for c in all_candidates:
-            skills = db.skills_to_list(c.get("skills"))
+            skills = skills_to_list(c.get("skills"))
             for s in skills:
                 cand_skill_counts[s.strip().title()] += 1
 
