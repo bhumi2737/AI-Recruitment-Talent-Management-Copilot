@@ -85,7 +85,7 @@ class UnclosableClientWrapper:
 
 _cached_mongo_client = None
 
-def get_mongo_client(timeout_ms: int = 2000):
+def get_mongo_client(timeout_ms: int = 10000):
     """Create and return a cached MongoClient instance wrapped to prevent premature socket closure."""
     global _cached_mongo_client
     _pymongo = _get_pymongo()
@@ -172,7 +172,7 @@ def test_connection() -> tuple[bool, str]:
     Returns (success: bool, message: str).
     """
     try:
-        with get_mongo_client(timeout_ms=2000) as client:
+        with get_mongo_client(timeout_ms=10000) as client:
             # The ping command will trigger server selection and fail if offline
             client.admin.command('ping')
         return True, "Connected to MongoDB"
@@ -444,7 +444,7 @@ def _normalize_skills_text(skills_text: str) -> list[str]:
 def get_candidate_count() -> int:
     """Return total number of candidates in the MongoDB database."""
     try:
-        with get_mongo_client(timeout_ms=2000) as client:
+        with get_mongo_client(timeout_ms=10000) as client:
             db = client[MONGO_CONFIG["dbname"]]
             col = db[MONGO_CONFIG["collection"]]
             return col.count_documents({})
@@ -455,7 +455,7 @@ def get_candidate_count() -> int:
 def get_dashboard_stats() -> dict:
     """Return dashboard stats with aggregated skill counts and candidate totals."""
     try:
-        with get_mongo_client(timeout_ms=2000) as client:
+        with get_mongo_client(timeout_ms=10000) as client:
             db = client[MONGO_CONFIG["dbname"]]
             col = db[MONGO_CONFIG["collection"]]
             total_candidates = col.count_documents({})
@@ -854,7 +854,7 @@ def get_candidate_stage_counts() -> dict[str, int]:
     counts = {stage: 0 for stage in ALLOWED_RECRUITMENT_STAGES}
     counts["Total"] = 0
     try:
-        with get_mongo_client(timeout_ms=2000) as client:
+        with get_mongo_client(timeout_ms=10000) as client:
             db = client[MONGO_CONFIG["dbname"]]
             col = db[MONGO_CONFIG["collection"]]
             docs = list(col.find({}, {"recruitment_stage": 1, "email": 1, "phone": 1}))
@@ -901,7 +901,7 @@ def log_audit_event(user_email: str, user_name: str, user_role: str, action: str
     }
 
     try:
-        with get_mongo_client(timeout_ms=1500) as client:
+        with get_mongo_client(timeout_ms=10000) as client:
             db_inst = client[MONGO_CONFIG["dbname"]]
             col = db_inst[AUDIT_LOGS_COLLECTION]
             col.insert_one(entry.copy())
@@ -916,7 +916,7 @@ def get_audit_logs(limit: int = 100) -> list[dict[str, Any]]:
     """
     logs = []
     try:
-        with get_mongo_client(timeout_ms=1500) as client:
+        with get_mongo_client(timeout_ms=10000) as client:
             db_inst = client[MONGO_CONFIG["dbname"]]
             col = db_inst[AUDIT_LOGS_COLLECTION]
             cursor = col.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
