@@ -224,9 +224,12 @@ def authenticate_user(email: str, password: str) -> tuple[bool, str, dict[str, A
         return False, "Email and Password are required.", None
 
     user = db_auth.get_user_by_email(clean_email)
-    if not user and clean_email in ["admin@copilot.com", "admin@gmail.com", "admin@admin.com"]:
+    bootstrap_admin_email = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "admin@copilot.com").strip().lower()
+    bootstrap_admin_password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "admin123")
+
+    if not user and (clean_email == bootstrap_admin_email or clean_email in ["admin@copilot.com", "admin@gmail.com", "admin@admin.com"]):
         # Auto-seed default demo admin user for easy access
-        register_user("Admin Recruiter", clean_email, "admin123", "admin123", role="admin", is_bootstrap=True)
+        register_user("Admin Recruiter", clean_email, bootstrap_admin_password, bootstrap_admin_password, role="admin", is_bootstrap=True)
         user = db_auth.get_user_by_email(clean_email)
 
     if not user:

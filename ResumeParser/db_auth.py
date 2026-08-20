@@ -140,3 +140,53 @@ def list_users() -> list[dict[str, Any]]:
             return docs
     except Exception:
         return offline_storage.get_all_offline_records(COLLECTION_NAME)
+
+
+def update_user_status(user_id: str, is_active: bool) -> tuple[bool, str]:
+    """Activate or deactivate a user account."""
+    if not user_id:
+        return False, "User ID is required."
+    try:
+        with db.get_mongo_client() as client:
+            database_inst = client[db.MONGO_CONFIG["dbname"]]
+            database_inst[COLLECTION_NAME].update_one(
+                {"user_id": user_id},
+                {"$set": {"is_active": is_active, "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}}
+            )
+    except Exception:
+        pass
+
+    user = get_user_by_id(user_id)
+    if user:
+        user["is_active"] = is_active
+        user["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        offline_storage.upsert_offline_record(COLLECTION_NAME, user_id, user)
+        status_text = "Activated" if is_active else "Deactivated"
+        return True, f"User account {status_text} successfully."
+    return False, "User not found."
+
+
+def update_user_role(user_id: str, new_role: str) -> tuple[bool, str]:
+    """Update role for a user account."""
+    clean_role = (new_role or "").strip().lower()
+    if clean_role not in ["admin", "recruiter", "candidate"]:
+        return False, "Invalid role specified."
+
+    try:
+        with db.get_mongo_client() as client:
+            database_inst = client[db.MONGO_CONFIG["dbname"]]
+            database_inst[COLLECTION_NAME].update_one(
+                {"user_id": user_id},
+                {"$set": {"role": clean_role, "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}}
+            )
+    except Exception:
+        pass
+
+    user = get_user_by_id(user_id)
+    if user:
+        user["role"] = clean_role
+        user["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        offline_storage.upsert_offline_record(COLLECTION_NAME, user_id, user)
+        return True, f"User role updated to '{clean_role.capitalize()}'."
+    return False, "User not found."
+

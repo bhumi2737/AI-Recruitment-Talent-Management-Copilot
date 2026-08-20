@@ -20,6 +20,12 @@ ENV/
 *.pem
 *.key
 
+# Offline Cache & Databases
+.offline_cache/
+ResumeParser/.offline_cache/
+*.sqlite
+*.db
+
 # Logs & Diagnostics
 *.log
 logs/
@@ -35,9 +41,20 @@ Thumbs.db
 *.swp
 *.swo
 
-# Temporary Files & Generated Artifacts
+# Temporary Files, Dumps & Old Schemas
 dashboard_code.txt
+ResumeParser/dashboard_code.txt
 *.tmp
 *.pdf
 *.csv
+*.old
 scratch/
+
+# Test Artifacts & Debug Scripts
+milestone4_test_results.json
+fix_priya.py
+run_milestone4_tests.py
+test_*.py
+ResumeParser/fix_dashboard.py
+ResumeParser/backfill_evaluations.py
+ResumeParser/schema.sql.old

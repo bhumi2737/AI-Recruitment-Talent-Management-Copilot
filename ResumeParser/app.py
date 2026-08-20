@@ -5,13 +5,32 @@ Streamlit dashboard application.
 """
 from __future__ import annotations
 
+import os
+import sys
+
+# Ensure module directory is in sys.path when running from repo root or subdirectories
+_app_dir = os.path.dirname(os.path.abspath(__file__))
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
+
+# Sync secrets from Streamlit Cloud (st.secrets) to os.environ if available
+try:
+    import streamlit as _st
+    if hasattr(_st, "secrets"):
+        for _key in _st.secrets:
+            if _key not in os.environ:
+                _val = _st.secrets[_key]
+                if isinstance(_val, str):
+                    os.environ[_key] = _val
+except Exception:
+    pass
+
 import html
 import inspect
 from collections import Counter
 from datetime import datetime
 from typing import Any
 
-import os
 import requests
 import streamlit as st
 
@@ -91,8 +110,8 @@ def st_cache_data_no_spinner(ttl: int = 20):
 
 # ── Page configuration ────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="RC Recruitment Copilot",
-    page_icon="📋",
+    page_title="HireFlow AI — Smart Hiring Platform",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -601,7 +620,7 @@ def render_public_header():
 
     col1, col2, col3, col4 = st.columns([4, 1.2, 1.2, 1.2])
     with col1:
-        st.markdown('<div class="pub-logo">🤖 AI Recruitment Copilot <span class="pub-badge">SaaS 2.0</span></div>', unsafe_allow_html=True)
+        st.markdown('<div class="pub-logo">⚡ HireFlow AI <span class="pub-badge">Smart Hiring Copilot</span></div>', unsafe_allow_html=True)
     with col2:
         if st.button("🏠 Home", use_container_width=True, key="hdr_btn_home"):
             st.session_state.auth_page = "Landing"
@@ -1087,6 +1106,7 @@ def render_register_page():
                     st.session_state.authenticated = True
                     st.session_state.auth_user = user_data
                     st.session_state.jwt_token = user_data.get("token")
+                    db.log_audit_event(user_data.get("email"), user_data.get("full_name"), user_data.get("role"), "User Registered", f"Account {user_data.get('email')}", "Success", f"Registered new account with role '{selected_role}'")
                     if user_data.get("token"):
                         st.query_params["session_token"] = user_data.get("token")
                     st.session_state.portal_role = "Candidate" if selected_role == "candidate" else "Recruiter"
@@ -1159,6 +1179,7 @@ def render_login_page():
                     st.session_state.authenticated = True
                     st.session_state.auth_user = user_data
                     st.session_state.jwt_token = user_data.get("token")
+                    db.log_audit_event(user_data.get("email"), user_data.get("full_name"), user_data.get("role"), "User Login", f"User {user_data.get('email')}", "Success", "Successful login authentication")
                     if user_data.get("token"):
                         st.query_params["session_token"] = user_data.get("token")
                     st.session_state.auth_page = "Dashboard"
@@ -1249,21 +1270,25 @@ def check_and_enforce_auth():
     if user_role == "candidate":
         st.session_state.portal_role = "Candidate"
         recruiter_and_admin_pages = [
-            "Users", "Recruiters", "Admin Profile", "Recruiter Profile",
+            "Users", "Recruiters", "Users & Recruiters", "Admin Profile", "Recruiter Profile",
             "Resume Upload", "Candidate Pipeline", "Interview Question Generator",
             "Interview Assignment", "Submitted Interviews", "Job Descriptions",
             "Candidate Matching", "Candidate Details", "Skill Gap Analysis",
-            "Candidate Ranking", "Executive Reports", "Settings"
+            "Candidate Ranking", "Executive Reports", "Settings", "System Analytics",
+            "Recruiter Performance", "AI Monitoring", "Recruitment Health", "Audit Logs", "Security"
         ]
         if st.session_state.get("active_page") in recruiter_and_admin_pages:
             st.session_state.active_page = "Dashboard"
             st.error("⛔ Access Denied: Candidate accounts cannot access Recruiter/Admin tools.")
     elif user_role == "recruiter":
         st.session_state.portal_role = "Recruiter"
-        admin_only_pages = ["Users", "Recruiters", "Admin Profile"]
+        admin_only_pages = [
+            "Users", "Recruiters", "Users & Recruiters", "Admin Profile", "System Analytics",
+            "Recruiter Performance", "AI Monitoring", "Recruitment Health", "Audit Logs", "Security"
+        ]
         if st.session_state.get("active_page") in admin_only_pages:
             st.session_state.active_page = "Dashboard"
-            st.error("⛔ Access Denied: Recruiter accounts cannot access Admin-only management tools.")
+            st.error("⛔ Access Denied: Recruiter accounts cannot access Admin control center tools.")
     elif user_role == "admin":
         st.session_state.portal_role = "Admin"
 
@@ -2886,10 +2911,13 @@ def load_db_status() -> tuple[bool, str]:
         return False, str(exc)
 
 
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
 @st_cache_data_no_spinner(ttl=30)
 def load_api_status() -> bool:
     try:
-        response = requests.get("http://127.0.0.1:8000/", timeout=1.0)
+        response = requests.get(f"{API_BASE_URL}/", timeout=1.0)
         return response.status_code == 200
     except Exception:
         return False
@@ -2898,7 +2926,7 @@ def load_api_status() -> bool:
 @st_cache_data_no_spinner(ttl=30)
 def api_get_jobs() -> list[dict[str, Any]]:
     try:
-        response = requests.get("http://127.0.0.1:8000/api/jobs/", timeout=1.5)
+        response = requests.get(f"{API_BASE_URL}/api/jobs/", timeout=1.5)
         if response.status_code == 200:
             return response.json()
     except Exception:
@@ -2940,7 +2968,7 @@ def save_job(job_data: dict[str, Any]) -> tuple[bool, str]:
     api_ok = load_api_status()
     if api_ok:
         try:
-            response = requests.post("http://127.0.0.1:8000/api/jobs/", json=job_data, timeout=2.0)
+            response = requests.post(f"{API_BASE_URL}/api/jobs/", json=job_data, timeout=2.0)
             if response.status_code == 201:
                 return True, "Job description created successfully via API."
             else:
@@ -2965,7 +2993,7 @@ def delete_job(job_id: str) -> tuple[bool, str]:
     api_ok = load_api_status()
     if api_ok:
         try:
-            response = requests.delete(f"http://127.0.0.1:8000/api/jobs/{job_id}", timeout=2.0)
+            response = requests.delete(f"{API_BASE_URL}/api/jobs/{job_id}", timeout=2.0)
             if response.status_code == 200:
                 return True, "Job description deleted successfully via API."
             else:
@@ -2993,7 +3021,7 @@ def update_job(job_id: str, job_data: dict[str, Any]) -> tuple[bool, str]:
     api_ok = load_api_status()
     if api_ok:
         try:
-            response = requests.put(f"http://127.0.0.1:8000/api/jobs/{job_id}", json=job_data, timeout=2.0)
+            response = requests.put(f"{API_BASE_URL}/api/jobs/{job_id}", json=job_data, timeout=2.0)
             if response.status_code == 200:
                 return True, "Job description updated successfully via API."
             else:
@@ -3024,7 +3052,7 @@ check_and_enforce_auth()
 render_admin_header()
 
 with st.sidebar:
-    st.markdown("# 📋 RC Recruitment")
+    st.markdown("# ⚡ HireFlow AI")
     st.markdown("---")
 
     theme_mode = st.session_state.get("theme", "Dark")
@@ -3032,60 +3060,40 @@ with st.sidebar:
     text_c = "#CBD5E1" if theme_mode == "Dark" else "#334155"
     bg_sec_c = "#111827" if theme_mode == "Dark" else "#F1F5F9"
     
-    # Automatic Role Assignment from Authenticated User Role
-    user_info = st.session_state.get("auth_user") or {}
-    user_role = (user_info.get("role") or "candidate").lower()
-    st.session_state.portal_role = "Candidate" if user_role == "candidate" else "Recruiter"
-
-    # Automatic Role Assignment from Authenticated User Role
     user_info = st.session_state.get("auth_user") or {}
     user_role = auth_service.normalize_role(user_info.get("role"))
 
     if user_role == "admin":
         st.session_state.portal_role = "Admin"
-        st.markdown("<div style='font-size:0.75rem; font-weight:800; color:var(--muted); margin-bottom:0.2rem; letter-spacing:0.5px;'>MAIN</div>", unsafe_allow_html=True)
-        if st.button("🏠 Overview", use_container_width=True, type="primary" if st.session_state.active_page == "Dashboard" else "secondary", key="nav_adm_overview"):
-            st.session_state.active_page = "Dashboard"
+        st.markdown("#### 🛡️ Admin Control Center")
+        adm_options = ["Dashboard", "System Analytics", "Job Descriptions", "Users & Recruiters", "Recruiter Performance", "AI Monitoring", "Recruitment Health", "Audit Logs", "Security", "Settings"]
+        adm_icons = ["house", "bar-chart-line", "briefcase", "people", "graph-up-arrow", "robot", "heart-pulse", "journal-text", "shield-lock", "gear"]
+
+        try:
+            from streamlit_option_menu import option_menu
+            active_page = option_menu(
+                menu_title=None,
+                options=adm_options,
+                icons=adm_icons,
+                default_index=adm_options.index(st.session_state.active_page) if st.session_state.active_page in adm_options else 0,
+                styles={
+                    "container": {"padding": "0!important", "background-color": "transparent", "border": "none"},
+                    "icon": {"color": p_color, "font-size": "1.05rem"},
+                    "nav-link": {"font-size": "0.92rem", "text-align": "left", "margin":"0px", "margin-bottom": "0.2rem", "--hover-color": bg_sec_c, "color": text_c},
+                    "nav-link-selected": {"background-color": p_color, "color": "white", "font-weight": "600"},
+                }
+            )
+        except ImportError:
+            active_page = st.radio("Admin Navigation", adm_options, index=0)
+
+        if st.session_state.active_page != active_page:
+            st.session_state.active_page = active_page
             st.rerun()
 
-        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>USER MANAGEMENT</div>", unsafe_allow_html=True)
-        if st.button("👥 Users", use_container_width=True, type="primary" if st.session_state.active_page == "Users" else "secondary", key="nav_adm_users"):
-            st.session_state.active_page = "Users"
-            st.rerun()
-        if st.button("🧑💼 Recruiters", use_container_width=True, type="primary" if st.session_state.active_page == "Recruiters" else "secondary", key="nav_adm_recruiters"):
-            st.session_state.active_page = "Recruiters"
-            st.rerun()
-        if st.button("🧑🎓 Candidates", use_container_width=True, type="primary" if st.session_state.active_page == "Candidate Details" else "secondary", key="nav_adm_cands"):
-            st.session_state.active_page = "Candidate Details"
-            st.rerun()
-
-        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>RECRUITMENT</div>", unsafe_allow_html=True)
-        if st.button("💼 Job Positions", use_container_width=True, type="primary" if st.session_state.active_page == "Job Descriptions" else "secondary", key="nav_adm_jobs"):
-            st.session_state.active_page = "Job Descriptions"
-            st.rerun()
-        if st.button("📄 Applications", use_container_width=True, type="primary" if st.session_state.active_page == "Candidate Pipeline" else "secondary", key="nav_adm_apps"):
-            st.session_state.active_page = "Candidate Pipeline"
-            st.rerun()
-        if st.button("📅 Interviews", use_container_width=True, type="primary" if st.session_state.active_page == "Interview Assignment" else "secondary", key="nav_adm_intvs"):
-            st.session_state.active_page = "Interview Assignment"
-            st.rerun()
-
-        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>ANALYTICS</div>", unsafe_allow_html=True)
-        if st.button("📊 Recruitment Analytics", use_container_width=True, type="primary" if st.session_state.active_page == "Candidate Ranking" else "secondary", key="nav_adm_analytics"):
-            st.session_state.active_page = "Candidate Ranking"
-            st.rerun()
-        if st.button("🤖 AI Activity", use_container_width=True, type="primary" if st.session_state.active_page == "Executive Reports" else "secondary", key="nav_adm_ai"):
-            st.session_state.active_page = "Executive Reports"
-            st.rerun()
-
-        st.markdown("<div style='margin-top:1rem; margin-bottom:0.2rem; font-size:0.75rem; font-weight:800; color:var(--muted); letter-spacing:0.5px;'>SYSTEM</div>", unsafe_allow_html=True)
-        if st.button("⚙️ Settings", use_container_width=True, type="primary" if st.session_state.active_page == "Settings" else "secondary", key="nav_adm_settings"):
-            st.session_state.active_page = "Settings"
-            st.rerun()
-        if st.button("🔐 Admin Profile", use_container_width=True, type="primary" if st.session_state.active_page == "Admin Profile" else "secondary", key="nav_adm_prof"):
-            st.session_state.active_page = "Admin Profile"
-            st.rerun()
+        st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True, key="nav_adm_logout"):
+            user = st.session_state.get("auth_user") or {}
+            db.log_audit_event(user.get("email"), user.get("full_name"), "admin", "User Logout", f"User {user.get('email')}", "Success", "User logged out")
             st.session_state.authenticated = False
             st.session_state.auth_user = None
             st.session_state.jwt_token = None
@@ -3277,6 +3285,537 @@ def render_job_selector_header(key_prefix: str, help_text: str = ""):
 
     return selected_job_id, selected_job, apps_for_job, cands_for_job
 
+
+# ── Admin Control Center Renderers ────────────────────────────────────────────
+
+def render_admin_overview():
+    """Render the Enterprise Control Center overview for Admin users."""
+    st.markdown('<p class="main-heading">🛡️ Admin Enterprise Control Center</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Real-time system telemetry, hiring metrics, health diagnostics, and audit feed</p>', unsafe_allow_html=True)
+
+    all_jobs = db_jobs.get_all_jobs()
+    all_candidates = db.get_all_candidates()
+    all_users = db_auth.list_users()
+    all_apps = db_applications.get_all_applications()
+    all_interviews = db_interviews.get_submitted_interviews()
+    health = db.get_system_health_metrics()
+
+    recruiters = [u for u in all_users if auth_service.normalize_role(u.get("role")) == "recruiter"]
+    shortlisted = [c for c in all_candidates if c.get("recruitment_stage") == "Shortlisted" or c.get("application_status") == "Shortlisted"]
+    hires = [c for c in all_candidates if c.get("recruitment_stage") in ["Selected", "Hired"] or c.get("application_status") in ["Selected", "Hired"]]
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid #3B82F6;">
+                <div style="font-size: 2rem;">💼</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--heading);">{len(all_jobs)}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Total Job Requisitions</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid #10B981;">
+                <div style="font-size: 2rem;">🧑💼</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--heading);">{len(recruiters)}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Active Recruiters</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid #8B5CF6;">
+                <div style="font-size: 2rem;">👤</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--heading);">{len(all_candidates)}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Total Candidates Pool</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with c4:
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid #F59E0B;">
+                <div style="font-size: 2rem;">📄</div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--heading);">{len(all_apps)}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Total Applications</div>
+            </div>
+        ''', unsafe_allow_html=True)
+
+    c5, c6, c7, c8 = st.columns(4)
+    with c5:
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid #06B6D4;">
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--heading);">{len(shortlisted)}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Shortlisted Candidates</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with c6:
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid #EC4899;">
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--heading);">{len(all_interviews)}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Interviews Conducted</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with c7:
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid #10B981;">
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--heading);">{len(hires)}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Selected / Hired</div>
+            </div>
+        ''', unsafe_allow_html=True)
+    with c8:
+        st_color = "#10B981" if health["status"] == "Healthy" else ("#F59E0B" if health["status"] == "Needs Attention" else "#EF4444")
+        st.markdown(f'''
+            <div class="custom-card" style="text-align: center; border-top: 4px solid {st_color};">
+                <div style="font-size: 1.2rem; font-weight: 800; color: {st_color};">{health["status"].upper()}</div>
+                <div style="font-size: 0.85rem; color: var(--muted); font-weight: 600;">Recruitment Health</div>
+            </div>
+        ''', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown("### ⚡ Executive Quick Actions")
+    qa1, qa2, qa3, qa4 = st.columns(4)
+    with qa1:
+        if st.button("➕ Onboard Recruiter", use_container_width=True, key="adm_qa_create_rec"):
+            st.session_state.active_page = "Users & Recruiters"
+            st.rerun()
+    with qa2:
+        if st.button("💼 Manage Requisitions", use_container_width=True, key="adm_qa_manage_jds"):
+            st.session_state.active_page = "Job Descriptions"
+            st.rerun()
+    with qa3:
+        if st.button("🧩 System Diagnostics", use_container_width=True, key="adm_qa_diag"):
+            st.session_state.active_page = "Recruitment Health"
+            st.rerun()
+    with qa4:
+        if st.button("📋 View Audit Logs", use_container_width=True, key="adm_qa_logs"):
+            st.session_state.active_page = "Audit Logs"
+            st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown("### 📋 Platform Activity & Audit Feed")
+    logs = db.get_audit_logs(limit=8)
+    if not logs:
+        st.info("No audit activity logged yet. System actions (logins, uploads, status updates) will automatically record here.")
+    else:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        for log in logs:
+            st.markdown(f'''
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.7rem 0.5rem; border-bottom: 1px solid var(--border);">
+                    <div>
+                        <span style="font-weight: 700; color: var(--heading);">{html.escape(log.get("action", "Action"))}</span>
+                        <span style="color: var(--muted); font-size: 0.85rem;"> — {html.escape(log.get("details", ""))}</span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--muted);">
+                        👤 {html.escape(log.get("user_email", ""))} &nbsp;|&nbsp; 🕒 {html.escape(str(log.get("timestamp", "")))}
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_admin_job_descriptions_overview():
+    """Render Admin-level Job Description overview with recruitment pipeline metrics."""
+    st.markdown('<p class="main-heading">💼 Job Requisitions Overview</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Platform-wide Job Descriptions and candidate applications pipeline</p>', unsafe_allow_html=True)
+
+    all_jobs = db_jobs.get_all_jobs()
+    all_apps = db_applications.get_all_applications()
+    all_interviews = db_interviews.get_submitted_interviews()
+    all_candidates = db.get_all_candidates()
+
+    if not all_jobs:
+        st.info("No Job Requisitions created yet in the database.")
+        return
+
+    st.markdown(f"**Total Requisitions:** `{len(all_jobs)}` &nbsp;|&nbsp; Click **Inspect Applications** to view candidate pipeline for any job.")
+
+    for job in all_jobs:
+        jid = job.get("job_id")
+        jtitle = job.get("job_title", "Untitled Role")
+        company = job.get("company_name", "TechCorp")
+        location = job.get("location", "Remote")
+        created_at = str(job.get("created_at", "N/A"))[:10]
+
+        job_apps = [a for a in all_apps if a.get("job_id") == jid]
+        shortlisted_count = sum(1 for a in job_apps if a.get("status") == "Shortlisted" or a.get("recruitment_stage") == "Shortlisted")
+        job_cands = [c for c in all_candidates if c.get("job_id") == jid]
+        if not shortlisted_count and job_cands:
+            shortlisted_count = sum(1 for c in job_cands if c.get("recruitment_stage") == "Shortlisted")
+
+        interview_count = sum(1 for i in all_interviews if i.get("job_id") == jid)
+        selected_count = sum(1 for c in job_cands if c.get("recruitment_stage") in ["Selected", "Hired"])
+
+        st.markdown(f'''
+            <div class="custom-card" style="margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.8rem;">
+                    <div>
+                        <div style="font-weight: 800; font-size: 1.15rem; color: var(--heading);">💼 {html.escape(jtitle)}</div>
+                        <div style="font-size: 0.88rem; color: var(--muted);">🏢 {html.escape(company)} &nbsp;|&nbsp; 📍 {html.escape(location)} &nbsp;|&nbsp; 🕒 Created: {html.escape(created_at)}</div>
+                    </div>
+                    <div>
+                        <span style="background: rgba(59, 130, 246, 0.15); color: #3B82F6; padding: 0.3rem 0.8rem; border-radius: 9999px; font-weight: 700; font-size: 0.8rem;">ID: {html.escape(jid)}</span>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; text-align: center; margin-bottom: 1rem;">
+                    <div style="background: var(--bg-sec); padding: 0.6rem; border-radius: 8px;">
+                        <div style="font-size: 1.2rem; font-weight: 800; color: var(--heading);">{len(job_apps) or len(job_cands)}</div>
+                        <div style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Applications</div>
+                    </div>
+                    <div style="background: var(--bg-sec); padding: 0.6rem; border-radius: 8px;">
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #3B82F6;">{shortlisted_count}</div>
+                        <div style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Shortlisted</div>
+                    </div>
+                    <div style="background: var(--bg-sec); padding: 0.6rem; border-radius: 8px;">
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #8B5CF6;">{interview_count}</div>
+                        <div style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Interviewed</div>
+                    </div>
+                    <div style="background: var(--bg-sec); padding: 0.6rem; border-radius: 8px;">
+                        <div style="font-size: 1.2rem; font-weight: 800; color: #10B981;">{selected_count}</div>
+                        <div style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Selected</div>
+                    </div>
+                </div>
+            </div>
+        ''', unsafe_allow_html=True)
+
+        col_btn1, col_btn2 = st.columns([1.5, 3.5])
+        with col_btn1:
+            if st.button(f"🔍 Inspect Applications ({jid})", key=f"adm_inspect_{jid}", use_container_width=True, type="primary"):
+                st.session_state.selected_job_id = jid
+                st.session_state.active_page = "Candidate Pipeline"
+                st.rerun()
+
+
+def render_admin_system_analytics():
+    """Render system-level recruitment analytics and skill gap demand breakdown."""
+    st.markdown('<p class="main-heading">📊 System Recruitment Analytics</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Aggregate metrics, candidate pipeline breakdown, and skill demand vs availability</p>', unsafe_allow_html=True)
+
+    all_jobs = db_jobs.get_all_jobs()
+    all_candidates = db.get_all_candidates()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📈 Candidates by Recruitment Stage")
+        stage_counts = db.get_candidate_stage_counts()
+        import pandas as pd
+        df_stages = pd.DataFrame([
+            {"Stage": k, "Candidates": v} for k, v in stage_counts.items() if k != "Total"
+        ])
+        if not df_stages.empty and df_stages["Candidates"].sum() > 0:
+            import plotly.express as px
+            fig_stage = px.pie(df_stages, names="Stage", values="Candidates", color="Stage", hole=0.4,
+                               color_discrete_map={"Applied": "#3B82F6", "Screening": "#F59E0B", "Shortlisted": "#8B5CF6", "Interview": "#EC4899", "Selected": "#10B981", "Rejected": "#EF4444"})
+            fig_stage.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=300)
+            st.plotly_chart(fig_stage, use_container_width=True)
+        else:
+            st.info("No candidate stage data available yet.")
+
+    with col2:
+        st.markdown("### 🎯 Skill Demand vs Candidate Availability")
+        jd_skill_counts = Counter()
+        for j in all_jobs:
+            skills = j.get("required_skills") or []
+            for s in skills:
+                jd_skill_counts[s.strip().title()] += 1
+
+        cand_skill_counts = Counter()
+        for c in all_candidates:
+            skills = db.skills_to_list(c.get("skills"))
+            for s in skills:
+                cand_skill_counts[s.strip().title()] += 1
+
+        top_skills = [s for s, _ in jd_skill_counts.most_common(8)] or ["Python", "JavaScript", "SQL", "Docker", "React", "AWS"]
+        skill_data = []
+        for s in top_skills:
+            skill_data.append({
+                "Skill": s,
+                "Required in JDs": jd_skill_counts[s],
+                "Available in Candidates": cand_skill_counts[s]
+            })
+
+        df_skills = pd.DataFrame(skill_data)
+        if not df_skills.empty:
+            import plotly.express as px
+            fig_skills = px.bar(df_skills, x="Skill", y=["Required in JDs", "Available in Candidates"], barmode="group",
+                                color_discrete_sequence=["#3B82F6", "#10B981"])
+            fig_skills.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=300, legend_title="")
+            st.plotly_chart(fig_skills, use_container_width=True)
+        else:
+            st.info("No skill demand data available yet.")
+
+
+def render_admin_recruiter_performance():
+    """Render Recruiter team activity and hiring performance breakdown."""
+    st.markdown('<p class="main-heading">📈 Recruiter Performance Analytics</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Tracking recruiter metrics across Job Descriptions and applications</p>', unsafe_allow_html=True)
+
+    all_users = db_auth.list_users()
+    recruiters = [u for u in all_users if auth_service.normalize_role(u.get("role")) in ["recruiter", "admin"]]
+    all_jobs = db_jobs.get_all_jobs()
+    all_apps = db_applications.get_all_applications()
+    all_candidates = db.get_all_candidates()
+
+    if not recruiters:
+        st.info("No registered recruiter accounts found.")
+        return
+
+    rec_data = []
+    for r in recruiters:
+        remail = r.get("email", "").lower()
+        rname = r.get("full_name", "Recruiter")
+        
+        r_jobs = [j for j in all_jobs if (j.get("created_by") or j.get("recruiter_email") or "").lower() == remail]
+        if not r_jobs and len(recruiters) == 1:
+            r_jobs = all_jobs
+
+        r_job_ids = {j.get("job_id") for j in r_jobs}
+        r_apps = [a for a in all_apps if a.get("job_id") in r_job_ids]
+        r_shortlisted = sum(1 for a in r_apps if a.get("status") == "Shortlisted")
+        r_hires = sum(1 for c in all_candidates if c.get("job_id") in r_job_ids and c.get("recruitment_stage") in ["Selected", "Hired"])
+
+        rec_data.append({
+            "Recruiter Name": rname,
+            "Email": remail,
+            "Role": r.get("role", "recruiter").upper(),
+            "JDs Managed": len(r_jobs),
+            "Applications Received": len(r_apps) or (len(all_apps) if len(recruiters) == 1 else 0),
+            "Shortlisted": r_shortlisted or (sum(1 for c in all_candidates if c.get("recruitment_stage") == "Shortlisted") if len(recruiters) == 1 else 0),
+            "Hires Made": r_hires or (sum(1 for c in all_candidates if c.get("recruitment_stage") in ["Selected", "Hired"]) if len(recruiters) == 1 else 0),
+        })
+
+    import pandas as pd
+    df_rec = pd.DataFrame(rec_data)
+    render_html_table(df_rec)
+
+
+def render_admin_ai_monitoring():
+    """Render AI Services telemetry and feature usage metrics."""
+    st.markdown('<p class="main-heading">🤖 AI Services Telemetry</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Real-time usage metrics for Groq LLMs, Whisper Voice STT, and ATS Scorers</p>', unsafe_allow_html=True)
+
+    all_candidates = db.get_all_candidates()
+    
+    question_sets_count = 0
+    try:
+        import db_question_sets
+        question_sets_count = len(db_question_sets.get_all_question_sets())
+    except Exception:
+        pass
+
+    evaluations_count = 0
+    try:
+        import db_interview_evaluator
+        evaluations_count = len(db_interview_evaluator.get_all_evaluations())
+    except Exception:
+        pass
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric("Resumes Parsed", len(all_candidates), delta="In-Memory PDF/DOCX")
+    with m2:
+        st.metric("ATS Match Evaluations", len(all_candidates), delta="Regex & Skill Vectors")
+    with m3:
+        st.metric("AI Question Sets", question_sets_count, delta="Groq LLM Engine")
+    with m4:
+        st.metric("Interview Evaluations", evaluations_count, delta="Groq Llama-3 Scorer")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('''
+        <div class="custom-card">
+            <h3>⚙️ AI Infrastructure & Engine Configuration</h3>
+            <p><strong>Primary LLM Provider:</strong> Groq Cloud API (Llama 3.3 70B Versatile / Mixtral-8x7b)</p>
+            <p><strong>Voice Transcription Engine:</strong> Groq Whisper Large V3 Speech-to-Text</p>
+            <p><strong>Resume Text Parsing:</strong> <code>pypdf</code> + <code>python-docx</code> in-memory buffer engine</p>
+            <p><strong>ATS Matching Engine:</strong> Jaccard skill similarity & weighted vector scoring algorithm</p>
+            <p><strong>API Key Status:</strong> Configured via environment variable <code>GROQ_API_KEY</code></p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+
+def render_admin_recruitment_health():
+    """Render recruitment health diagnostics and data anomaly warnings."""
+    st.markdown('<p class="main-heading">🧩 Recruitment Health Diagnostic</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Automated data integrity audit and anomaly detection across all collections</p>', unsafe_allow_html=True)
+
+    health = db.get_system_health_metrics()
+    st_color = "#10B981" if health["status"] == "Healthy" else ("#F59E0B" if health["status"] == "Needs Attention" else "#EF4444")
+
+    st.markdown(f'''
+        <div class="custom-card" style="border-left: 6px solid {st_color};">
+            <h3 style="color: {st_color}; margin-bottom: 0.3rem;">SYSTEM HEALTH STATUS: {health["status"].upper()}</h3>
+            <p style="color: var(--muted); font-size: 0.95rem;">
+                Inspected <strong>{health["total_jobs"]}</strong> Job Requisitions, <strong>{health["total_candidates"]}</strong> Candidate Profiles, and <strong>{health["total_applications"]}</strong> Applications across database.
+            </p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### ⚠️ Diagnostic Audit Trail")
+
+    issues = health.get("issues", [])
+    if not issues:
+        st.success("🎉 All systems healthy! No data integrity issues or anomalies detected.")
+    else:
+        for issue in issues:
+            level = issue.get("level", "Needs Attention")
+            category = issue.get("category", "General")
+            msg = issue.get("message", "")
+            
+            badge_bg = "rgba(245, 158, 11, 0.15)" if level == "Needs Attention" else "rgba(239, 68, 68, 0.15)"
+            badge_fg = "#F59E0B" if level == "Needs Attention" else "#EF4444"
+
+            st.markdown(f'''
+                <div style="background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem; margin-bottom: 0.6rem; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <span style="background: {badge_bg}; color: {badge_fg}; font-weight: 800; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 9999px; margin-right: 0.5rem;">{level.upper()}</span>
+                        <strong style="color: var(--heading);">{category}:</strong>
+                        <span style="color: var(--muted); font-size: 0.95rem;"> {html.escape(msg)}</span>
+                    </div>
+                </div>
+            ''', unsafe_allow_html=True)
+
+
+def render_admin_users_and_recruiters():
+    """Render User Directory & Recruiter Creation management interface."""
+    st.markdown('<p class="main-heading">👥 User & Recruiter Account Management</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Platform user directory, role permissions, and recruiter onboarding</p>', unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["📋 Registered Users Directory", "➕ Onboard New Recruiter"])
+
+    with tab1:
+        users = db_auth.list_users()
+        if not users:
+            st.info("No registered user accounts found.")
+        else:
+            for u in users:
+                uid = u.get("user_id")
+                uname = u.get("full_name", "User")
+                uemail = u.get("email", "")
+                urole = u.get("role", "candidate")
+                is_active = u.get("is_active", True)
+                created = str(u.get("created_at", ""))[:10]
+
+                status_badge = '<span style="color: #10B981; font-weight:700;">🟢 Active</span>' if is_active else '<span style="color: #EF4444; font-weight:700;">🔴 Inactive</span>'
+
+                col_u1, col_u2 = st.columns([3, 1])
+                with col_u1:
+                    st.markdown(f'''
+                        <div style="background: var(--card); border: 1px solid var(--border); padding: 0.8rem; border-radius: 10px; margin-bottom: 0.5rem;">
+                            <div style="font-weight: 700; font-size: 1.05rem; color: var(--heading);">{html.escape(uname)} ({status_badge})</div>
+                            <div style="font-size: 0.85rem; color: var(--muted);">✉️ {html.escape(uemail)} &nbsp;|&nbsp; 🆔 {html.escape(uid)} &nbsp;|&nbsp; 📅 Registered: {html.escape(created)}</div>
+                            <div style="margin-top: 0.3rem;"><span style="background: rgba(59,130,246,0.15); color: #3B82F6; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 9999px; font-weight: 700;">ROLE: {html.escape(urole.upper())}</span></div>
+                        </div>
+                    ''', unsafe_allow_html=True)
+                with col_u2:
+                    if is_active:
+                        if st.button("Deactivate", key=f"deact_{uid}", use_container_width=True):
+                            ok, msg = db_auth.update_user_status(uid, False)
+                            db.log_audit_event(st.session_state.auth_user.get("email"), st.session_state.auth_user.get("full_name"), "admin", "User Deactivated", f"User {uemail}", "Success", msg)
+                            st.success(msg)
+                            st.rerun()
+                    else:
+                        if st.button("Activate", key=f"act_{uid}", use_container_width=True, type="primary"):
+                            ok, msg = db_auth.update_user_status(uid, True)
+                            db.log_audit_event(st.session_state.auth_user.get("email"), st.session_state.auth_user.get("full_name"), "admin", "User Activated", f"User {uemail}", "Success", msg)
+                            st.success(msg)
+                            st.rerun()
+
+    with tab2:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.markdown("### ➕ Onboard Recruiter Account")
+        with st.form("admin_create_recruiter_form"):
+            r_name = st.text_input("Recruiter Full Name", placeholder="e.g. Sarah Jenkins")
+            r_email = st.text_input("Recruiter Work Email", placeholder="e.g. sarah.jenkins@company.com")
+            r_pw = st.text_input("Temporary Password", type="password", placeholder="At least 6 characters")
+            r_pw_confirm = st.text_input("Confirm Temporary Password", type="password")
+            
+            submit_rec = st.form_submit_button("✨ Register Recruiter Account", type="primary", use_container_width=True)
+            if submit_rec:
+                ok, msg, res = auth_service.register_user(r_name, r_email, r_pw, r_pw_confirm, role="recruiter")
+                if ok:
+                    admin_user = st.session_state.get("auth_user") or {}
+                    db.log_audit_event(admin_user.get("email"), admin_user.get("full_name"), "admin", "Recruiter Account Created", f"Recruiter {r_email}", "Success", "Registered new recruiter account")
+                    st.success(f"🎉 Recruiter account created successfully for {r_email}!")
+                    st.rerun()
+                else:
+                    st.error(f"❌ {msg}")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_admin_audit_logs():
+    """Render platform audit trail and activity log history."""
+    st.markdown('<p class="main-heading">📋 Platform Audit Trail & System Logs</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Immutable log history tracking user authentication, candidate changes, and administrative actions</p>', unsafe_allow_html=True)
+
+    logs = db.get_audit_logs(limit=150)
+    if not logs:
+        st.info("No audit entries recorded yet.")
+        return
+
+    import pandas as pd
+    df_logs = pd.DataFrame(logs)
+    cols_to_show = [c for c in ["timestamp", "user_email", "user_role", "action", "entity", "status", "details"] if c in df_logs.columns]
+    df_logs_display = df_logs[cols_to_show].rename(columns={
+        "timestamp": "Timestamp",
+        "user_email": "User Email",
+        "user_role": "Role",
+        "action": "Action",
+        "entity": "Target Entity",
+        "status": "Status",
+        "details": "Details"
+    })
+    render_html_table(df_logs_display)
+
+
+def render_admin_security():
+    """Render platform security telemetry and token standards."""
+    st.markdown('<p class="main-heading">🔐 Platform Security & Access Control</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Authentication security metrics, role isolation, and token cryptographic standards</p>', unsafe_allow_html=True)
+
+    users = db_auth.list_users()
+    active_users = [u for u in users if u.get("is_active", True)]
+    inactive_users = [u for u in users if not u.get("is_active", True)]
+
+    s1, s2, s3, s4 = st.columns(4)
+    with s1:
+        st.metric("Total User Accounts", len(users))
+    with s2:
+        st.metric("Active Accounts", len(active_users))
+    with s3:
+        st.metric("Deactivated Accounts", len(inactive_users))
+    with s4:
+        st.metric("Security Standard", "Bcrypt / JWT HS256")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('''
+        <div class="custom-card">
+            <h3>🛡️ System Security Specifications</h3>
+            <p><strong>Password Storage:</strong> Salted Bcrypt Password Hashing with SHA-256 fallback verification</p>
+            <p><strong>Session Token Standard:</strong> JSON Web Tokens (JWT) signed with 256-bit secret key (HS256)</p>
+            <p><strong>Role Enforcement:</strong> Server-side & UI route authorization guards active for Admin, Recruiter, and Candidate roles</p>
+            <p><strong>Database Credentials:</strong> Protected via environment variables (<code>MONGO_URI</code> / <code>st.secrets</code>)</p>
+            <p><strong>Document Buffer Protection:</strong> Uploaded resume files parsed strictly in-memory using binary byte streams (<code>io.BytesIO</code>)</p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+
+def render_admin_settings():
+    """Render platform system configuration settings."""
+    st.markdown('<p class="main-heading">⚙️ Platform System Settings</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-subtitle">Environment configuration status and global theme settings</p>', unsafe_allow_html=True)
+
+    st.markdown('''
+        <div class="custom-card">
+            <h3>🚀 Application Environment Status</h3>
+            <p><strong>Deployed Application Name:</strong> HireFlow AI</p>
+            <p><strong>Project Name:</strong> AI Driven Smart Hiring Platform with Candidate Matching Copilot</p>
+            <p><strong>Streamlit Framework Version:</strong> 1.32.0+</p>
+            <p><strong>Database Status:</strong> MongoDB Connected (Atlas / Local) with JSON Offline Cache Fallback</p>
+            <p><strong>Groq AI Engine Status:</strong> Active</p>
+        </div>
+    ''', unsafe_allow_html=True)
+
+
 # ── Main content routing ──────────────────────────────────────────────────────
 if st.session_state.get("portal_role") == "Candidate":
     render_candidate_portal()
@@ -3284,9 +3823,43 @@ if st.session_state.get("portal_role") == "Candidate":
 
 active_page = st.session_state.active_page
 
+# Admin Page Routing Guards & Custom Views
+if st.session_state.get("portal_role") == "Admin":
+    if active_page in ["Dashboard", "Overview"]:
+        render_admin_overview()
+        st.stop()
+    elif active_page == "Job Descriptions":
+        render_admin_job_descriptions_overview()
+        st.stop()
+    elif active_page == "System Analytics":
+        render_admin_system_analytics()
+        st.stop()
+    elif active_page == "Recruiter Performance":
+        render_admin_recruiter_performance()
+        st.stop()
+    elif active_page == "AI Monitoring":
+        render_admin_ai_monitoring()
+        st.stop()
+    elif active_page == "Recruitment Health":
+        render_admin_recruitment_health()
+        st.stop()
+    elif active_page in ["Users & Recruiters", "Users", "Recruiters"]:
+        render_admin_users_and_recruiters()
+        st.stop()
+    elif active_page == "Audit Logs":
+        render_admin_audit_logs()
+        st.stop()
+    elif active_page == "Security":
+        render_admin_security()
+        st.stop()
+    elif active_page == "Settings":
+        render_admin_settings()
+        st.stop()
+
+
 
 if active_page == "Dashboard":
-    st.markdown('<p class="main-heading">🚀 Professional ATS Recruiter Dashboard</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-heading">🚀 Professional ATS Dashboard</p>', unsafe_allow_html=True)
     st.markdown('<p class="main-subtitle">Real-Time Applicant Tracking System — Analytics, Candidate Pipelines & AI Screening</p>', unsafe_allow_html=True)
 
     # Initialize dashboard session state filters

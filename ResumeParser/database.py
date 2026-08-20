@@ -45,6 +45,18 @@ def _safe_import_objectid():
 # Load environment variables from .env file
 load_dotenv()
 
+# Sync secrets from Streamlit Cloud (st.secrets) to os.environ if available
+try:
+    import streamlit as _st
+    if hasattr(_st, "secrets"):
+        for _key in _st.secrets:
+            if _key not in os.environ:
+                _val = _st.secrets[_key]
+                if isinstance(_val, str):
+                    os.environ[_key] = _val
+except Exception:
+    pass
+
 # MongoDB connection settings (override with environment variables)
 MONGO_CONFIG = {
     "uri": os.getenv("MONGO_URI", "mongodb://localhost:27017/"),
@@ -865,4 +877,126 @@ def get_candidate_stage_counts() -> dict[str, int]:
             return counts
     except Exception:
         return counts
+
+
+AUDIT_LOGS_COLLECTION = "audit_logs"
+
+def log_audit_event(user_email: str, user_name: str, user_role: str, action: str, entity: str, status: str = "Success", details: str = "") -> None:
+    """
+    Record an audit trail event in MongoDB (or offline storage fallback).
+    """
+    log_id = f"LOG-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{os.urandom(2).hex()}"
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = {
+        "log_id": log_id,
+        "timestamp": timestamp,
+        "user_email": (user_email or "system@copilot.ai").strip().lower(),
+        "user_name": (user_name or "System").strip(),
+        "user_role": (user_role or "System").strip(),
+        "action": action,
+        "entity": entity,
+        "status": status,
+        "details": details,
+        "created_at": datetime.datetime.utcnow().isoformat()
+    }
+
+    try:
+        with get_mongo_client(timeout_ms=1500) as client:
+            db_inst = client[MONGO_CONFIG["dbname"]]
+            col = db_inst[AUDIT_LOGS_COLLECTION]
+            col.insert_one(entry.copy())
+    except Exception:
+        offline_storage.upsert_offline_record(AUDIT_LOGS_COLLECTION, log_id, entry)
+
+
+def get_audit_logs(limit: int = 100) -> list[dict[str, Any]]:
+    """
+    Retrieve audit trail log entries sorted by timestamp descending.
+    """
+    logs = []
+    try:
+        with get_mongo_client(timeout_ms=1500) as client:
+            db_inst = client[MONGO_CONFIG["dbname"]]
+            col = db_inst[AUDIT_LOGS_COLLECTION]
+            cursor = col.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+            logs = list(cursor)
+    except Exception:
+        raw_offline = offline_storage.get_all_offline_records(AUDIT_LOGS_COLLECTION)
+        raw_offline.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
+        logs = raw_offline[:limit]
+
+    return logs
+
+
+def get_system_health_metrics() -> dict[str, Any]:
+    """
+    Inspects actual database records and returns a recruitment health summary with diagnostic metrics.
+    """
+    issues = []
+    
+    # 1. Inspect Jobs
+    all_jobs = []
+    try:
+        import db_jobs
+        all_jobs = db_jobs.get_all_jobs()
+    except Exception:
+        pass
+
+    jds_no_desc = [j for j in all_jobs if not (j.get("job_description") or "").strip()]
+    jds_no_skills = [j for j in all_jobs if not j.get("required_skills")]
+    
+    if jds_no_desc:
+        issues.append({"level": "Needs Attention", "category": "Job Descriptions", "message": f"{len(jds_no_desc)} Job Requisition(s) missing full job description text."})
+    if jds_no_skills:
+        issues.append({"level": "Needs Attention", "category": "Job Descriptions", "message": f"{len(jds_no_skills)} Job Requisition(s) missing required skill tags."})
+
+    # 2. Inspect Candidates
+    all_candidates = get_all_candidates()
+    cands_no_skills = [c for c in all_candidates if not c.get("skills")]
+    cands_no_contact = [c for c in all_candidates if not c.get("email") and not c.get("phone")]
+
+    if cands_no_skills:
+        issues.append({"level": "Needs Attention", "category": "Candidates", "message": f"{len(cands_no_skills)} Candidate Profile(s) missing extracted skills."})
+    if cands_no_contact:
+        issues.append({"level": "Critical", "category": "Candidates", "message": f"{len(cands_no_contact)} Candidate Profile(s) missing both email and phone contact info."})
+
+    # Check candidate email duplicates
+    emails = [c.get("email").strip().lower() for c in all_candidates if c.get("email")]
+    dup_emails = len(emails) - len(set(emails))
+    if dup_emails > 0:
+        issues.append({"level": "Needs Attention", "category": "Candidates", "message": f"Detected {dup_emails} duplicate candidate email record(s)."})
+
+    # 3. Inspect Applications across JDs
+    all_apps = []
+    try:
+        import db_applications
+        all_apps = db_applications.get_all_applications()
+    except Exception:
+        pass
+
+    jds_with_apps = {a.get("job_id") for a in all_apps if a.get("job_id")}
+    jds_no_apps = [j for j in all_jobs if j.get("job_id") not in jds_with_apps]
+    if jds_no_apps:
+        issues.append({"level": "Needs Attention", "category": "Applications", "message": f"{len(jds_no_apps)} Active Job Requisition(s) have 0 received applications."})
+
+    # Overall Status Calculation
+    critical_count = sum(1 for i in issues if i["level"] == "Critical")
+    attention_count = sum(1 for i in issues if i["level"] == "Needs Attention")
+
+    if critical_count > 0:
+        overall_status = "Critical"
+    elif attention_count > 0:
+        overall_status = "Needs Attention"
+    else:
+        overall_status = "Healthy"
+
+    return {
+        "status": overall_status,
+        "issues": issues,
+        "total_jobs": len(all_jobs),
+        "total_candidates": len(all_candidates),
+        "total_applications": len(all_apps),
+        "issues_count": len(issues)
+    }
+
 

@@ -5,6 +5,7 @@ Starts the backend web server for the Recruitment Copilot.
 Exposes Job description REST APIs.
 """
 
+import os
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,10 +20,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS Configuration (allows Streamlit frontend to interact with the API)
+# CORS Configuration (allows Streamlit frontend to interact with the API in production)
+frontend_origin = os.getenv("FRONTEND_URL", "*")
+allowed_origins = [origin.strip() for origin in frontend_origin.split(",") if origin.strip()] if frontend_origin != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the exact Streamlit domains
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,4 +53,6 @@ def health_check():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host=host, port=port)
